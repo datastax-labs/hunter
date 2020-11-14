@@ -1,0 +1,5 @@
+# Please place this file in `~/.hunter/conf.yaml` and provide the missing config values:
+fallout_user:
+fallout_token:
+fallout_url: https://fallout.sjc.dsinternal.org/
+graphite_url: http://history.datastax.lan/
