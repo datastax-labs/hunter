@@ -1,4 +1,3 @@
-import datetime
 from dataclasses import dataclass
 from typing import List, Dict, Set, Optional
 
@@ -7,11 +6,12 @@ from signal_processing_algorithms.e_divisive.calculators import cext_calculator
 from signal_processing_algorithms.e_divisive.significance_test import QHatPermutationsSignificanceTester
 from tabulate import tabulate
 
-from hunter.util import remove_common_prefix, format_timestamp
+from hunter.util import remove_common_prefix, format_timestamp, insert_multiple
 
 
 @dataclass
 class ChangePoint:
+    index: int
     time: int
     probability: float
     metrics: List[str]
@@ -57,6 +57,7 @@ class TestResults:
                     c.probability = min(c.probability, cp.probability)
                 else:
                     change_points[cp.index] = ChangePoint(
+                        cp.index,
                         self.time[cp.index],
                         cp.probability,
                         [metric]
@@ -70,6 +71,16 @@ class TestResults:
         table = {"time": time_column, **self.values}
         headers = ["time", *remove_common_prefix(list(self.values.keys()))]
         return tabulate(table, headers=headers)
+
+    def format_log_annotated(self) -> str:
+        """Returns test log with change points marked as horizontal lines"""
+        change_points = self.find_change_points()
+        lines = self.format_log().split("\n")
+        indexes = [cp.index for cp in change_points]
+        width = max(len(l) for l in lines)
+        separator = "-" * width
+        lines = lines[:2] + insert_multiple(lines[2:], separator, indexes)
+        return "\n".join(lines)
 
     def format_change_points(self):
         change_points = [

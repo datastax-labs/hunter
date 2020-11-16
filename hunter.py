@@ -17,7 +17,8 @@ def list_tests(fallout: Fallout):
 def analyze_runs(fallout: Fallout, graphite: Graphite):
     results = FalloutImporter(fallout, graphite).fetch(args.test, args.user)
     print("Test Runs:")
-    print(results.format_log())
+    print(results.format_log_annotated())
+    print()
     print("Change Points:")
     print(results.format_change_points())
 
