@@ -17,11 +17,9 @@ def list_tests(fallout: Fallout):
 def analyze_runs(fallout: Fallout, graphite: Graphite):
     results = FalloutImporter(fallout, graphite).fetch(args.test, args.user)
     print("Test Runs:")
-    results.display()
-    change_points = results.find_change_points()
+    print(results.format_log())
     print("Change Points:")
-    for cp in change_points:
-        print(f"{cp.time} {cp.probability} {remove_common_prefix(cp.metrics)}")
+    print(results.format_change_points())
 
 
 parser = argparse.ArgumentParser(

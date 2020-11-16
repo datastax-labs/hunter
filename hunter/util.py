@@ -1,3 +1,4 @@
+import datetime
 import sys
 from typing import List, TypeVar, Set, Dict
 
@@ -60,3 +61,7 @@ def remove_common_prefix(names: List[str], sep: str = ".") \
 def eprint(*args, **kwargs):
     """Prints to stdandard error"""
     print(*args, file=sys.stderr, **kwargs)
+
+
+def format_timestamp(ts: int) -> str:
+    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")

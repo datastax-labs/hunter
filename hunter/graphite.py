@@ -51,7 +51,7 @@ class Graphite:
             url = f"{self.__url}render" \
                   f"?target={prefix}.{suffix}.*" \
                   f"&format=json" \
-                  f"&from=-180days"
+                  f"&from=-365days"
             data_str = urllib.request.urlopen(url).read()
             data_as_json = json.loads(data_str)
             for s in data_as_json:
