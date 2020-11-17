@@ -16,18 +16,30 @@ class FalloutConfig:
 
 
 def test_params(definition: str) -> str:
-    """Returns the lines until the first line --- """
+    """
+    Returns the lines until the first line equal to '---'.
+    If there is no '---', an empty string is returned.
+    """
     lines = definition.splitlines()
-    lines = itertools.takewhile(lambda l: l != "---", lines)
-    return "\n".join(lines)
+    if "---" in lines:
+        lines = itertools.takewhile(lambda l: l != "---", lines)
+        return "\n".join(lines)
+    else:
+        return ""
 
 
 def test_template(definition: str) -> str:
-    """Returns the lines after the first line --- """
+    """
+    Returns the lines after the first line equal to '---'
+    If there is no '---', returns the original definition.
+    """
     lines = definition.splitlines()
-    lines = itertools.dropwhile(lambda l: l != "---", lines)
-    next(lines)  # skip "---"
-    return "\n".join(lines)
+    if "---" in lines:
+        lines = itertools.dropwhile(lambda l: l != "---", lines)
+        next(lines)  # skip "---"
+        return "\n".join(lines)
+    else:
+        return definition
 
 
 def test_yaml(definition: str) -> dict:

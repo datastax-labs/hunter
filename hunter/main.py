@@ -1,3 +1,5 @@
+from typing import Optional
+
 from hunter import config
 
 import argparse
@@ -32,14 +34,18 @@ def setup():
     exit(0)
 
 
-def list_tests(fallout: Fallout):
+def list_tests(fallout: Fallout, user: Optional[str]):
     for test_name in fallout.list_tests(user):
         print(test_name)
     exit(0)
 
 
-def analyze_runs(fallout: Fallout, graphite: Graphite):
-    results = FalloutImporter(fallout, graphite).fetch(args.test, args.user)
+def analyze_runs(
+        fallout: Fallout,
+        graphite: Graphite,
+        test: str,
+        user: Optional[str]):
+    results = FalloutImporter(fallout, graphite).fetch(test, user)
     print("Test Runs:")
     print(results.format_log_annotated())
     print()
@@ -47,15 +53,17 @@ def analyze_runs(fallout: Fallout, graphite: Graphite):
     print(results.format_change_points())
     exit(0)
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Hunts performance regressions in Fallout results")
     parser.add_argument("--user", help="user-name in Fallout")
 
     subparsers = parser.add_subparsers(dest="command")
-    setup_parser = subparsers.add_parser("setup", help="run interactive setup")
-    list_parser = subparsers.add_parser("list", help="list available tests")
-    analyze_parser = subparsers.add_parser("analyze", help="analyze performance test results")
+    subparsers.add_parser("setup", help="run interactive setup")
+    subparsers.add_parser("list", help="list available tests")
+    analyze_parser = subparsers\
+        .add_parser("analyze", help="analyze performance test results")
     analyze_parser.add_argument("test", help="name of the test in Fallout")
 
     try:
@@ -70,9 +78,9 @@ def main():
         graphite = Graphite(conf.graphite)
 
         if args.command == "list":
-            list_tests(fallout)
+            list_tests(fallout, user)
         if args.command == "analyze":
-            analyze_runs(fallout, graphite)
+            analyze_runs(fallout, graphite, args.test, user)
         if args.command is None:
             parser.print_usage()
 
