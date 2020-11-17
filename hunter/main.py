@@ -19,7 +19,7 @@ from hunter.util import eprint
 def setup():
     fallout_user = input("Fallout user name (email): ")
     fallout_token = input("Fallout token: ")
-    conf_template = (Path("resources") / "conf.yaml.template").read_text()
+    conf_template = (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
     conf_yaml = pystache.render(conf_template, {
         'fallout_token': fallout_token,
         'fallout_user': fallout_user
