@@ -24,6 +24,9 @@ def setup():
         'fallout_token': fallout_token,
         'fallout_user': fallout_user
     })
+    hunter_conf_dir = (Path.home() / ".hunter")
+    if not hunter_conf_dir.exists():
+        hunter_conf_dir.mkdir()
     os.umask(0o600) # Don't share credentials with other users
     (Path.home() / ".hunter" / "conf.yaml").write_text(conf_yaml)
     exit(0)
