@@ -1,6 +1,14 @@
-.idea
-*.pyc
-*.pyo
+# IntelliJ IDEA files
+.idea/
+*.iml
+
+# pyenv version info
+.python-version
+
+# Python 3 cache
+__pycache__/
+
+# Other Python dev dirs
 build/
 dist/
 venv/
