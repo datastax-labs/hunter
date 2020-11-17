@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "hunter"
+version = "0.1.0"
+description = ""
+authors = ["Piotr Kołaczkowski <pkolaczk@datastax.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+signal-processing-algorithms = "^1.2.5"
+# 0.15.89 is the highest level fallout-client can use, for python 2 compatibility
+# reasons
+"ruamel.yaml" = "=0.15.89"
+pystache = "^0.5.4"
+tabulate = "^0.8.7"
+fallout-client = {git = "ssh://git@github.com/riptano/fallout.git", rev = "gbk-poetry-compatibility"}
+
+[tool.poetry.dev-dependencies]
+
+[tool.poetry.scripts]
+hunter = 'hunter.main:main'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

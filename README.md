@@ -10,18 +10,26 @@ Features may be missing.
 Usability may be unsatisfactory.
 Documentation may be incomplete.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development instructions.
+
 ## Installation
-Hunter requires Python 3.8.
-Install the following dependencies:
-* [Fallout API](https://github.com/riptano/Fallout/tree/master/fallout-cli)
-* [MongoDB Signal Processing Libraries](https://pypi.org/project/signal-processing-algorithms/)
-* [Pystache](https://pypi.org/project/pystache/)
-* [Ruamel](https://pypi.org/project/ruamel.yaml/)
-* [Tabulate](https://pypi.org/project/tabulate/)
+
+Hunter requires Python 3.8.  If you don't have python 3.8, [use pyenv to install
+it](https://datastax.jira.com/wiki/spaces/~741246479/pages/827785323/Coping+with+python+environments).
+
+[Install
+pipx](https://datastax.jira.com/wiki/spaces/~741246479/pages/827785323/Coping+with+python+environments),
+if you haven't already.
+
+Use pipx to install hunter:
+
+```
+pipx install git+ssh://git@github.com/riptano/hunter
+```
 
 ## Setup
 ```
-python hunter.py setup
+hunter setup
 ```
 The installer will ask you about your Fallout user name and access token
 and will save them in `~/.hunter/conf.yaml`. 
@@ -33,14 +41,14 @@ to Fallout and Graphite.
 ## Usage
 ### Listing Available Tests
 ```
-python hunter.py list [--user <fallout user>]
+hunter list [--user <fallout user>]
 ``` 
 
 If no user is provided, then user configured in `conf.yaml` is assumed.
 
 ### Finding Change Points
 ```
-python hunter.py analyze <fallout test name>
+hunter analyze <fallout test name>
 ```
 
 This command prints interesting results of all
@@ -71,8 +79,3 @@ ensemble:
             export.prefix: {{Graphite export prefix}}
             export.metrics: {{Additional metrics}}              
 ```
- 
-
-
-
-   
