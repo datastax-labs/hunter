@@ -20,9 +20,12 @@ Install the following dependencies:
 * [Tabulate](https://pypi.org/project/tabulate/)
 
 ## Setup
-Copy `resources/conf.yaml.template` file to `~/.hunter/conf.yaml`.
-Then open it and set your Fallout user-name (email) and oauth token
-under appropriate properties. 
+```
+python hunter.py setup
+```
+The installer will ask you about your Fallout user name and access token
+and will save them in `~/.hunter/conf.yaml`. 
+You can manually adjust other settings in that file as well. 
 
 You need to be connected to DataStax VPN to allow Hunter to connect
 to Fallout and Graphite.

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List
+
 from ruamel.yaml import YAML
 
 from hunter.fallout import FalloutConfig
@@ -23,14 +25,15 @@ def load_config_from(config_file: Path) -> Config:
         content = config_file.read_text()
         yaml = YAML(typ='safe')
         config = yaml.load(content)
-
-        fallout = FalloutConfig(
-            user=config["fallout_user"],
-            token=config["fallout_token"],
-            url=config["fallout_url"])
-        graphite = GraphiteConfig(
-            url=config["graphite_url"])
-        return Config(fallout, graphite)
+        return Config(
+            fallout=FalloutConfig(
+                user=config["fallout"]["user"],
+                token=config["fallout"]["token"],
+                url=config["fallout"]["url"]),
+            graphite=GraphiteConfig(
+                url=config["graphite"]["url"],
+                suffixes=config["graphite"]["suffixes"])
+        )
 
     except FileNotFoundError as e:
         raise ConfigError(f"Configuration file not found: {e.filename}")

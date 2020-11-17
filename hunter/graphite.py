@@ -7,6 +7,7 @@ from typing import Dict, List
 @dataclass
 class GraphiteConfig:
     url: str
+    suffixes: List[str]
 
 
 @dataclass
@@ -29,17 +30,14 @@ def decode_graphite_datapoints(
             for p in points if p[0] is not None]
 
 
-SUFFIXES = [
-    "ebdse_read.result",
-    "ebdse_write.result",
-]
-
 
 class Graphite:
     __url: str
+    __suffixes: List[str]
 
     def __init__(self, conf: GraphiteConfig):
         self.__url = conf.url
+        self.__suffixes = conf.suffixes
 
     def fetch(self, prefix: str) -> List[TimeSeries]:
         """
@@ -47,7 +45,7 @@ class Graphite:
         given prefix. The series to be downloaded are picked from SUFFIXES list.
         """
         result = []
-        for suffix in SUFFIXES:
+        for suffix in self.__suffixes:
             url = f"{self.__url}render" \
                   f"?target={prefix}.{suffix}.*" \
                   f"&format=json" \
@@ -55,6 +53,7 @@ class Graphite:
             data_str = urllib.request.urlopen(url).read()
             data_as_json = json.loads(data_str)
             for s in data_as_json:
+                name: str = s["target"]
                 series = TimeSeries(
                     name=s["target"],
                     data=decode_graphite_datapoints(s))
