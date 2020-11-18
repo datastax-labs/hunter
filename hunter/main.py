@@ -15,6 +15,7 @@ from hunter.config import ConfigError
 from hunter.fallout import Fallout, FalloutError
 from hunter.graphite import Graphite
 from hunter.importer import FalloutImporter
+from hunter.report import Report
 from hunter.util import eprint
 
 
@@ -46,11 +47,12 @@ def analyze_runs(
         test: str,
         user: Optional[str]):
     results = FalloutImporter(fallout, graphite).fetch(test, user)
+    report = Report(results)
     print("Test Runs:")
-    print(results.format_log_annotated())
+    print(report.format_log_annotated())
     print()
     print("Change Points:")
-    print(results.format_change_points())
+    print(report.format_change_points())
     exit(0)
 
 

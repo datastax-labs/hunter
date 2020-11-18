@@ -1,12 +1,10 @@
 from dataclasses import dataclass
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Optional
 
 from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.calculators import cext_calculator
-from signal_processing_algorithms.e_divisive.significance_test import QHatPermutationsSignificanceTester
-from tabulate import tabulate
-
-from hunter.util import remove_common_prefix, format_timestamp, insert_multiple
+from signal_processing_algorithms.e_divisive.significance_test import \
+    QHatPermutationsSignificanceTester
 
 
 @dataclass
@@ -66,28 +64,5 @@ class TestResults:
             sorted(list(change_points.values()), key=lambda x: x.time)
         return self.change_points
 
-    def format_log(self) -> str:
-        time_column = [format_timestamp(ts) for ts in self.time]
-        table = {"time": time_column, **self.values}
-        headers = ["time", *remove_common_prefix(list(self.values.keys()))]
-        return tabulate(table, headers=headers)
-
-    def format_log_annotated(self) -> str:
-        """Returns test log with change points marked as horizontal lines"""
-        change_points = self.find_change_points()
-        lines = self.format_log().split("\n")
-        indexes = [cp.index for cp in change_points]
-        width = max(len(l) for l in lines)
-        separator = "-" * width
-        lines = lines[:2] + insert_multiple(lines[2:], separator, indexes)
-        return "\n".join(lines)
-
-    def format_change_points(self):
-        change_points = [
-            [format_timestamp(cp.time),
-             cp.probability,
-             remove_common_prefix(cp.metrics)]
-            for cp in self.find_change_points()]
-        return tabulate(change_points, ["time", "P-value", "metrics"])
 
 
