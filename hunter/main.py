@@ -14,7 +14,7 @@ from hunter import config
 from hunter.config import ConfigError
 from hunter.fallout import Fallout, FalloutError
 from hunter.graphite import Graphite
-from hunter.importer import FalloutImporter
+from hunter.importer import FalloutImporter, DataImportError
 from hunter.report import Report
 from hunter.util import eprint
 
@@ -87,10 +87,13 @@ def main():
             parser.print_usage()
 
     except ConfigError as err:
-        eprint(err.message)
+        eprint(f"error: {err.message}")
         exit(1)
     except FalloutError as err:
-        eprint(err.message)
+        eprint(f"error: {err.message}")
+        exit(1)
+    except DataImportError as err:
+        eprint(f"error: {err.message}")
         exit(1)
 
 

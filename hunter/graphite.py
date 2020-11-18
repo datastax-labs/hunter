@@ -29,8 +29,6 @@ def decode_graphite_datapoints(
     return [DataPoint(int(p[1]), p[0])
             for p in points if p[0] is not None]
 
-
-
 class Graphite:
     __url: str
     __suffixes: List[str]
@@ -53,7 +51,6 @@ class Graphite:
             data_str = urllib.request.urlopen(url).read()
             data_as_json = json.loads(data_str)
             for s in data_as_json:
-                name: str = s["target"]
                 series = TimeSeries(
                     name=s["target"],
                     data=decode_graphite_datapoints(s))

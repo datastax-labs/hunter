@@ -1,9 +1,15 @@
+from dataclasses import dataclass
 from typing import List, Optional
 
 from hunter.analysis import TestResults
 from hunter.fallout import Fallout
 from hunter.graphite import DataPoint, Graphite
 from hunter.util import merge_sorted
+
+
+@dataclass
+class DataImportError(Exception):
+    message: str
 
 
 class FalloutImporter:
@@ -25,7 +31,11 @@ class FalloutImporter:
         """
         test = self.fallout.get_test(test_name, user)
         data = self.graphite.fetch(test.graphite_prefix())
-        assert data, "no timeseries found"
+        if not data:
+            raise DataImportError(
+                f"No timeseries found in Graphite for test {test_name}. "
+                "You can define which metrics are fetched from Graphite by "
+                "setting the `suffixes` property in the configuration file.")
 
         times = [[x.time for x in series.data] for series in data]
         time: List[int] = merge_sorted(times)
