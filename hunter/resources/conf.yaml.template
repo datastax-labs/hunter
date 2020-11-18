@@ -10,4 +10,5 @@ graphite:
         - ebdse_write.result
         - Real_select_trade.ok
         - Real_insert_trade.ok
+        - nb_bench.main.result-success
 
