@@ -1,7 +1,7 @@
 import json
 import urllib.request
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -19,7 +19,7 @@ class DataPoint:
 @dataclass
 class TimeSeries:
     name: str
-    data: List[DataPoint]
+    points: List[DataPoint]
 
 
 def decode_graphite_datapoints(
@@ -37,15 +37,17 @@ class Graphite:
         self.__url = conf.url
         self.__suffixes = conf.suffixes
 
-    def fetch(self, prefix: str) -> List[TimeSeries]:
+    def fetch(self, prefix: str, selector: Optional[str]) -> List[TimeSeries]:
         """
         Connects to Graphite server and downloads interesting series with the
         given prefix. The series to be downloaded are picked from SUFFIXES list.
         """
         result = []
+        if selector is None:
+            selector = "*"
         for suffix in self.__suffixes:
             url = f"{self.__url}render" \
-                  f"?target={prefix}.{suffix}.*" \
+                  f"?target={prefix}.{suffix}.{selector}" \
                   f"&format=json" \
                   f"&from=-365days"
             data_str = urllib.request.urlopen(url).read()
@@ -53,7 +55,7 @@ class Graphite:
             for s in data_as_json:
                 series = TimeSeries(
                     name=s["target"],
-                    data=decode_graphite_datapoints(s))
+                    points=decode_graphite_datapoints(s))
                 result.append(series)
 
         return result

@@ -45,8 +45,9 @@ def analyze_runs(
         fallout: Fallout,
         graphite: Graphite,
         test: str,
-        user: Optional[str]):
-    results = FalloutImporter(fallout, graphite).fetch(test, user)
+        user: Optional[str],
+        filter: Optional[str]):
+    results = FalloutImporter(fallout, graphite).fetch(test, user, filter)
     report = Report(results)
     print("Test Runs:")
     print(report.format_log_annotated())
@@ -64,9 +65,14 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("setup", help="run interactive setup")
     subparsers.add_parser("list", help="list available tests")
-    analyze_parser = subparsers\
-        .add_parser("analyze", help="analyze performance test results")
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="analyze performance test results")
     analyze_parser.add_argument("test", help="name of the test in Fallout")
+    analyze_parser.add_argument(
+        "--metrics",
+        dest="metrics",
+        help="metrics selector, passed to graphite")
 
     try:
         args = parser.parse_args()
@@ -82,7 +88,7 @@ def main():
         if args.command == "list":
             list_tests(fallout, user)
         if args.command == "analyze":
-            analyze_runs(fallout, graphite, args.test, user)
+            analyze_runs(fallout, graphite, args.test, user, args.metrics)
         if args.command is None:
             parser.print_usage()
 

@@ -20,7 +20,10 @@ class FalloutImporter:
         self.fallout = fallout
         self.graphite = graphite
 
-    def fetch(self, test_name: str, user: Optional[str] = None) -> TestResults:
+    def fetch(self,
+              test_name: str,
+              user: Optional[str] = None,
+              selector: Optional[str] = None) -> TestResults:
         """
         Loads test data from fallout and graphite.
         Converts raw timeseries data into a columnar format,
@@ -30,14 +33,14 @@ class FalloutImporter:
         to a separate column.
         """
         test = self.fallout.get_test(test_name, user)
-        data = self.graphite.fetch(test.graphite_prefix())
-        if not data:
+        graphite_result = self.graphite.fetch(test.graphite_prefix(), selector)
+        if not graphite_result:
             raise DataImportError(
                 f"No timeseries found in Graphite for test {test_name}. "
                 "You can define which metrics are fetched from Graphite by "
                 "setting the `suffixes` property in the configuration file.")
 
-        times = [[x.time for x in series.data] for series in data]
+        times = [[x.time for x in series.points] for series in graphite_result]
         time: List[int] = merge_sorted(times)
 
         def column(series: List[DataPoint]) -> List[float]:
@@ -45,6 +48,6 @@ class FalloutImporter:
             return [value_by_time.get(t) for t in time]
 
         values = {}
-        for ts in data:
-            values[ts.name] = column(ts.data)
+        for ts in graphite_result:
+            values[ts.name] = column(ts.points)
         return TestResults(test_name, time, values)

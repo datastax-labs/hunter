@@ -42,12 +42,19 @@ class TestResults:
 
         calculator = cext_calculator
         tester = QHatPermutationsSignificanceTester(
-            calculator, pvalue=0.05, permutations=100
+            calculator, pvalue=0.01, permutations=100
         )
-        algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
-
         change_points = {}
         for metric, values in self.values.items():
+            # We need to initialize a fresh algo instance for each metric
+            # because calling get_change_points
+            # on the same instance modifies the internal state and
+            # yields weird results than when called
+            # separately. But we want to find change points separately for
+            # each metric here and take a simple sum of them.
+            algo = EDivisive(seed=None,
+                             calculator=calculator,
+                             significance_tester=tester)
             for cp in algo.get_change_points(values):
                 if cp.index in change_points:
                     c = change_points[cp.index]
