@@ -67,12 +67,13 @@ def format_timestamp(ts: int) -> str:
     return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def insert_multiple(col: List[T], item: T, positions: List[int]) -> List[T]:
+def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> List[T]:
     """Inserts an item into a collection at given positions"""
     result = []
     positions = set(positions)
+    new_items_iter = iter(new_items)
     for i, x in enumerate(col):
         if i in positions:
-            result.append(item)
+            result.append(next(new_items_iter))
         result.append(x)
     return result
