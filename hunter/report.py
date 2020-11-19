@@ -38,7 +38,6 @@ class Report:
                     sep_char = "-"
                 else:
                     sep_char = " "
-                print(sep_char)
                 separator += "  " + sep_char * col_widths[col_index + 1]
             separators.append(separator)
 
