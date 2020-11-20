@@ -1,13 +1,8 @@
+import argparse
 import logging
-from typing import Optional
-
-from hunter import config
-
-import argparse
-
-import argparse
 import os
 from pathlib import Path
+from typing import Optional
 
 import pystache
 
@@ -17,7 +12,6 @@ from hunter.fallout import Fallout, FalloutError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import FalloutImporter, DataImportError
 from hunter.report import Report
-from hunter.util import eprint
 
 
 def setup():
@@ -47,8 +41,8 @@ def analyze_runs(
         graphite: Graphite,
         test: str,
         user: Optional[str],
-        filter: Optional[str]):
-    results = FalloutImporter(fallout, graphite).fetch(test, user, filter)
+        selector: Optional[str]):
+    results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
     results.find_change_points()
 
     report = Report(results)
