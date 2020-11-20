@@ -29,6 +29,12 @@ def decode_graphite_datapoints(
     return [DataPoint(int(p[1]), p[0])
             for p in points if p[0] is not None]
 
+
+@dataclass
+class GraphiteError(IOError):
+    message: str
+
+
 class Graphite:
     __url: str
     __suffixes: List[str]
@@ -42,20 +48,25 @@ class Graphite:
         Connects to Graphite server and downloads interesting series with the
         given prefix. The series to be downloaded are picked from SUFFIXES list.
         """
-        result = []
-        if selector is None:
-            selector = "*"
-        for suffix in self.__suffixes:
-            url = f"{self.__url}render" \
-                  f"?target={prefix}.{suffix}.{selector}" \
-                  f"&format=json" \
-                  f"&from=-365days"
-            data_str = urllib.request.urlopen(url).read()
-            data_as_json = json.loads(data_str)
-            for s in data_as_json:
-                series = TimeSeries(
-                    name=s["target"],
-                    points=decode_graphite_datapoints(s))
-                result.append(series)
+        try:
+            result = []
+            if selector is None:
+                selector = "*"
+            for suffix in self.__suffixes:
+                url = f"{self.__url}render" \
+                      f"?target={prefix}.{suffix}.{selector}" \
+                      f"&format=json" \
+                      f"&from=-365days"
+                data_str = urllib.request.urlopen(url).read()
+                data_as_json = json.loads(data_str)
+                for s in data_as_json:
+                    series = TimeSeries(
+                        name=s["target"],
+                        points=decode_graphite_datapoints(s))
+                    result.append(series)
 
-        return result
+            return result
+
+        except IOError as err:
+            raise GraphiteError(
+                f"Failed to fetch data from Graphite: {str(err)}")

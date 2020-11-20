@@ -8,7 +8,7 @@ from hunter.util import merge_sorted
 
 
 @dataclass
-class DataImportError(Exception):
+class DataImportError(IOError):
     message: str
 
 

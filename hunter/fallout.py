@@ -78,7 +78,7 @@ class FalloutTest:
 
 
 @dataclass
-class FalloutError(Exception):
+class FalloutError(IOError):
     message: str
 
 
