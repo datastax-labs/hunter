@@ -33,21 +33,20 @@ class Report:
         metrics = list(self.__results.values.keys())
         for cp in change_points:
             separator = " " * col_widths[0]
+            info = " " * col_widths[0]
             for col_index, col_name in enumerate(metrics):
-                if col_name in cp.metrics:
-                    sep_char = "-"
+                col_width = col_widths[col_index + 1]
+                change = [c for c in cp.changes if c.metric == col_name]
+                if change:
+                    change = change[0]
+                    change_percent = change.change_percent()
+                    separator += "  " + "·" * col_width
+                    info += "  " + f"{change_percent:+.1f}%".rjust(col_width)
                 else:
-                    sep_char = " "
-                separator += "  " + sep_char * col_widths[col_index + 1]
-            separators.append(separator)
+                    separator += " " * (col_width + 2)
+                    info += " " * (col_width + 2)
+
+            separators.append(f"{separator}\n{info}\n{separator}")
 
         lines = lines[:2] + insert_multiple(lines[2:], separators, indexes)
         return "\n".join(lines)
-
-    def format_change_points(self):
-        change_points = [
-            [format_timestamp(cp.time),
-             cp.probability,
-             remove_common_prefix(cp.metrics)]
-            for cp in self.__results.find_change_points()]
-        return tabulate(change_points, ["time", "P-value", "metrics"])

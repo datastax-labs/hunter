@@ -46,11 +46,7 @@ def analyze_runs(
     results.find_change_points()
 
     report = Report(results)
-    print("Test Runs:")
     print(report.format_log_annotated())
-    print()
-    print("Change Points:")
-    print(report.format_change_points())
     exit(0)
 
 

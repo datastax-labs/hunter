@@ -1,19 +1,37 @@
 import logging
 from dataclasses import dataclass
+from itertools import groupby
+from statistics import mean
 from typing import List, Dict, Optional
 
 from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.calculators import cext_calculator
+from signal_processing_algorithms.e_divisive.change_points import \
+    EDivisiveChangePoint
 from signal_processing_algorithms.e_divisive.significance_test import \
     QHatPermutationsSignificanceTester
+
+from hunter.util import sliding_window
+
+
+@dataclass
+class Change:
+    metric: str
+    index: int
+    time: int
+    probability: float
+    old_mean: float
+    new_mean: float
+
+    def change_percent(self) -> float:
+        return (self.new_mean / self.old_mean - 1.0) * 100.0
 
 
 @dataclass
 class ChangePoint:
     index: int
     time: int
-    probability: float
-    metrics: List[str]
+    changes: List[Change]
 
 
 class TestResults:
@@ -46,7 +64,7 @@ class TestResults:
         tester = QHatPermutationsSignificanceTester(
             calculator, pvalue=0.01, permutations=100
         )
-        change_points = {}
+        changes: List[Change] = []
         for metric, values in self.values.items():
             # We need to initialize a fresh algo instance for each metric
             # because calling get_change_points
@@ -57,21 +75,34 @@ class TestResults:
             algo = EDivisive(seed=None,
                              calculator=calculator,
                              significance_tester=tester)
-            for cp in algo.get_change_points(values):
-                if cp.index in change_points:
-                    c = change_points[cp.index]
-                    c.metrics.append(metric)
-                    c.probability = min(c.probability, cp.probability)
-                else:
-                    change_points[cp.index] = ChangePoint(
-                        cp.index,
-                        self.time[cp.index],
-                        cp.probability,
-                        [metric]
+
+            init = EDivisiveChangePoint(0)
+            end = EDivisiveChangePoint(len(values))
+            change_points = algo.get_change_points(values)
+            change_points.sort(key=lambda c: c.index)
+
+            for window in sliding_window([init, *change_points, end], 3):
+                prev_cp = window[0]
+                curr_cp = window[1]
+                next_cp = window[2]
+                old_mean = mean(values[prev_cp.index:curr_cp.index])
+                new_mean = mean(values[curr_cp.index:next_cp.index])
+                changes.append(
+                    Change(
+                        index=curr_cp.index,
+                        time=self.time[curr_cp.index],
+                        probability=curr_cp.probability,
+                        metric=metric,
+                        old_mean=old_mean,
+                        new_mean=new_mean
                     )
-        self.change_points = \
-            sorted(list(change_points.values()), key=lambda x: x.time)
-        return self.change_points
+                )
 
+        changes.sort(key=lambda c: c.index)
+        points = []
+        for k, g in groupby(changes, key=lambda c: c.index):
+            cp = ChangePoint(index=k, time=self.time[k], changes=list(g))
+            points.append(cp)
 
-
+        self.change_points = points
+        return points

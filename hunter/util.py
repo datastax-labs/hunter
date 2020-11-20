@@ -1,5 +1,7 @@
 import datetime
 import sys
+from collections import deque
+from itertools import islice
 from typing import List, TypeVar, Set, Dict
 
 
@@ -77,3 +79,20 @@ def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> L
             result.append(next(new_items_iter))
         result.append(x)
     return result
+
+
+def sliding_window(iterable, size):
+    """
+    Returns an iterator which represents a sliding window over the given
+    collection. `size` denotes the size of the window. If the collection length
+    is less than the size, no items are yielded.
+    """
+    iterable = iter(iterable)
+    window = deque(islice(iterable, size), maxlen=size)
+    for item in iterable:
+        yield tuple(window)
+        window.append(item)
+    if len(window) == size:
+        # needed because if iterable was already empty before the `for`,
+        # then the window would be yielded twice.
+        yield tuple(window)
