@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
@@ -40,6 +41,7 @@ class TestResults:
         if self.change_points is not None:
             return self.change_points
 
+        logging.info("Computing change points...")
         calculator = cext_calculator
         tester = QHatPermutationsSignificanceTester(
             calculator, pvalue=0.01, permutations=100

@@ -1,6 +1,7 @@
 import json
 import urllib.request
 from dataclasses import dataclass
+from logging import info
 from typing import Dict, List, Optional
 
 
@@ -49,6 +50,7 @@ class Graphite:
         given prefix. The series to be downloaded are picked from SUFFIXES list.
         """
         try:
+            info("Fetching data from Graphite...")
             result = []
             if selector is None:
                 selector = "*"

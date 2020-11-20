@@ -1,5 +1,6 @@
 import itertools
 from dataclasses import dataclass
+from logging import info
 from typing import Optional, List
 
 import pystache
@@ -98,6 +99,7 @@ class Fallout:
             -> FalloutTest:
         """"Returns YAML of the Fallout test with the given name"""
         try:
+            info("Fetching test definition from Fallout...")
             if user is None:
                 user = self.__user
             test = self.__api.test_info(test_name, user)

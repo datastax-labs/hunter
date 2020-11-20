@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from hunter import config
@@ -48,6 +49,8 @@ def analyze_runs(
         user: Optional[str],
         filter: Optional[str]):
     results = FalloutImporter(fallout, graphite).fetch(test, user, filter)
+    results.find_change_points()
+
     report = Report(results)
     print("Test Runs:")
     print(report.format_log_annotated())
@@ -58,6 +61,8 @@ def analyze_runs(
 
 
 def main():
+    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+
     parser = argparse.ArgumentParser(
         description="Hunts performance regressions in Fallout results")
     parser.add_argument("--user", help="user-name in Fallout")
@@ -93,16 +98,16 @@ def main():
             parser.print_usage()
 
     except ConfigError as err:
-        eprint(f"error: {err.message}")
+        logging.error(err.message)
         exit(1)
     except FalloutError as err:
-        eprint(f"error: {err.message}")
+        logging.error(err.message)
         exit(1)
     except GraphiteError as err:
-        eprint(f"error: {err.message}")
+        logging.error(err.message)
         exit(1)
     except DataImportError as err:
-        eprint(f"error: {err.message}")
+        logging.error(err.message)
         exit(1)
 
 
