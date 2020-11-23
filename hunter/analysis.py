@@ -62,7 +62,7 @@ class TestResults:
         logging.info("Computing change points...")
         calculator = cext_calculator
         tester = QHatPermutationsSignificanceTester(
-            calculator, pvalue=0.01, permutations=100
+            calculator, pvalue=0.05, permutations=100
         )
         changes: List[Change] = []
         for metric, values in self.values.items():
@@ -85,8 +85,10 @@ class TestResults:
                 prev_cp = window[0]
                 curr_cp = window[1]
                 next_cp = window[2]
-                old_mean = mean(values[prev_cp.index:curr_cp.index])
-                new_mean = mean(values[curr_cp.index:next_cp.index])
+                old_mean = mean(filter(None.__ne__,
+                                       values[prev_cp.index:curr_cp.index]))
+                new_mean = mean(filter(None.__ne__,
+                                       values[curr_cp.index:next_cp.index]))
                 changes.append(
                     Change(
                         index=curr_cp.index,

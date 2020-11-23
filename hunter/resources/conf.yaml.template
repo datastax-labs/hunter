@@ -11,4 +11,6 @@ graphite:
         - Real_select_trade.ok
         - Real_insert_trade.ok
         - nb_bench.main.result-success
+        - stress-insert_standard.st
+        - stress-read_standard-800.st
 
