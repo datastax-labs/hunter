@@ -45,7 +45,7 @@ python-versions = "*"
 
 [[package]]
 name = "fallout-client"
-version = "1.189.0.post16+gf4650be65"
+version = "1.193.0.post5+g44c419094"
 description = "Fallout API and Command-line Client"
 category = "main"
 optional = false
@@ -64,8 +64,8 @@ setuptools-scm = ">=3.3.3,<3.4.0"
 [package.source]
 type = "git"
 url = "ssh://git@github.com/riptano/fallout.git"
-reference = "gbk-poetry-compatibility"
-resolved_reference = "f4650be6508dfb22eff6b85ee0e94f7fe73613c4"
+reference = "master"
+resolved_reference = "44c4190944e12cb0b3bdeb09a836ce9be045ce44"
 
 [[package]]
 name = "future"
@@ -283,7 +283,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "740abcb46e6142c21f6d2f6d7b3d4d7ea03d9184b06a5f59d6e52184b25f3a27"
+content-hash = "be9fe81035574f47b68510f00d5137932b04bccf9edc6f699dada43fbad5ee74"
 
 [metadata.files]
 ansicon = [

@@ -12,7 +12,7 @@ signal-processing-algorithms = "^1.2.5"
 "ruamel.yaml" = "=0.15.89"
 pystache = "^0.5.4"
 tabulate = "^0.8.7"
-fallout-client = {git = "ssh://git@github.com/riptano/fallout.git", rev = "gbk-poetry-compatibility"}
+fallout-client = {git = "ssh://git@github.com/riptano/fallout.git"}
 
 [tool.poetry.dev-dependencies]
 
