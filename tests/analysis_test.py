@@ -1,3 +1,6 @@
+from random import random
+import time
+
 from hunter.analysis import PerformanceLog
 
 
@@ -14,3 +17,15 @@ def test_change_point_detection():
     assert change_points[0].changes[0].metric == "series2"
     assert change_points[1].index == 6
     assert change_points[1].changes[0].metric == "series1"
+
+
+def test_change_point_detection_performance():
+    timestamps = range(0, 90)   # 3 months of data
+    series = [random() for x in timestamps]
+
+    start_time = time.process_time()
+    for run in range(0, 10):    # 10 series
+        log = PerformanceLog("test", list(timestamps), {"series": series})
+        log.find_change_points()
+    end_time = time.process_time()
+    assert (end_time - start_time) < 0.5
