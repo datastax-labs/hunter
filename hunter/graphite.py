@@ -56,7 +56,7 @@ class Graphite:
                 selector = "*"
             for suffix in self.__suffixes:
                 url = f"{self.__url}render" \
-                      f"?target={prefix}.{suffix}.{selector}" \
+                      f"?target={prefix}.{suffix}{selector}" \
                       f"&format=json" \
                       f"&from=-365days"
                 data_str = urllib.request.urlopen(url).read()
