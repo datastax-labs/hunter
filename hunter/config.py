@@ -5,6 +5,7 @@ from typing import List
 from ruamel.yaml import YAML
 
 from hunter.fallout import FalloutConfig
+from hunter.grafana import GrafanaConfig
 from hunter.graphite import GraphiteConfig
 
 
@@ -12,6 +13,7 @@ from hunter.graphite import GraphiteConfig
 class Config:
     fallout: FalloutConfig
     graphite: GraphiteConfig
+    grafana: GrafanaConfig
 
 
 @dataclass
@@ -25,6 +27,12 @@ def load_config_from(config_file: Path) -> Config:
         content = config_file.read_text()
         yaml = YAML(typ='safe')
         config = yaml.load(content)
+        # if Grafana configs not explicitly set in yaml file, default to same as Graphite server at port 3000
+        if config.get("grafana") is None:
+            config["gafana"] = {}
+            config["grafana"]["url"] = f"{config['graphite']['url'].strip('/')}:3000/"
+            config["grafana"]["user"] = "admin"
+            config["grafana"]["password"] = "admin"
         return Config(
             fallout=FalloutConfig(
                 user=config["fallout"]["user"],
@@ -32,7 +40,12 @@ def load_config_from(config_file: Path) -> Config:
                 url=config["fallout"]["url"]),
             graphite=GraphiteConfig(
                 url=config["graphite"]["url"],
-                suffixes=config["graphite"]["suffixes"])
+                suffixes=config["graphite"]["suffixes"]),
+            grafana=GrafanaConfig(
+                url=config["grafana"]["url"],
+                user=config["grafana"]["user"],
+                password=config["grafana"]["password"]
+            )
         )
 
     except FileNotFoundError as e:

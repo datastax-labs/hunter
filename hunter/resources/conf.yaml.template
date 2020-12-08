@@ -13,4 +13,7 @@ graphite:
         - nb_bench.main.result-success
         - stress-insert_standard.st
         - stress-read_standard-800.st
-
+grafana:
+    url: http://history.datastax.lan:3000/
+    user: admin
+    password: admin
