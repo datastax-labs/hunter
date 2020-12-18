@@ -192,7 +192,7 @@ class Grafana:
         dashboards_dict = {}
         url = f"{self.__url}api/search"
         try:
-            response = requests.get(url)
+            response = requests.get(url, auth=(self.__user, self.__password))
             response.raise_for_status()
         except HTTPError as err:
             raise GrafanaError(str(err))
@@ -203,7 +203,7 @@ class Grafana:
             dashboard_id = dashboard_metadata["id"]
             dashboard_url = f"{self.__url}api/dashboards/uid/{dashboard_uid}"
             try:
-                response = requests.get(dashboard_url)
+                response = requests.get(dashboard_url, auth=(self.__user, self.__password))
                 response.raise_for_status()
                 dashboard_info = response.json()["dashboard"]
                 dashboards_dict[dashboard_id] = Dashboard(dashboard_info=dashboard_info)
@@ -263,7 +263,7 @@ class Grafana:
             if tags is not None:
                 query_parameters["tags"] = tags
             try:
-                response = requests.get(url=url, params=query_parameters)
+                response = requests.get(url=url, params=query_parameters, auth=(self.__user, self.__password))
                 response.raise_for_status()
                 return response.json()
             except HTTPError as err:
