@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from hunter.analysis import PerformanceLog
 from hunter.fallout import Fallout
-from hunter.graphite import DataPoint, Graphite
+from hunter.graphite import DataPoint, Graphite, DataSelector
 from hunter.util import merge_sorted
 
 
@@ -22,8 +22,8 @@ class FalloutImporter:
 
     def fetch(self,
               test_name: str,
-              user: Optional[str] = None,
-              selector: Optional[str] = None) -> PerformanceLog:
+              user: Optional[str],
+              selector: DataSelector) -> PerformanceLog:
         """
         Loads test data from fallout and graphite.
         Converts raw timeseries data into a columnar format,
