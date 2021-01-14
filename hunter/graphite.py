@@ -1,7 +1,8 @@
 import json
 import urllib.request
 from dataclasses import dataclass
-from logging import info
+from datetime import datetime
+from logging import info, warning
 from typing import Dict, List, Optional
 
 
@@ -31,9 +32,28 @@ def decode_graphite_datapoints(
             for p in points if p[0] is not None]
 
 
+def to_graphite_time(time: datetime, default: str) -> str:
+    if time is not None:
+        return time.strftime("%H:%M_%Y%m%d")
+    else:
+        return default
+
+
 @dataclass
 class GraphiteError(IOError):
     message: str
+
+
+@dataclass
+class DataSelector:
+    metrics: Optional[List[str]]
+    from_time: Optional[datetime]
+    until_time: Optional[datetime]
+
+    def __init__(self):
+        self.metrics = None
+        self.from_time = None
+        self.until_time = None
 
 
 class Graphite:
@@ -44,7 +64,8 @@ class Graphite:
         self.__url = conf.url
         self.__suffixes = conf.suffixes
 
-    def fetch(self, prefix: str, selector: Optional[str]) -> List[TimeSeries]:
+    def fetch(self, prefix: str, selector: DataSelector) \
+            -> List[TimeSeries]:
         """
         Connects to Graphite server and downloads interesting series with the
         given prefix. The series to be downloaded are picked from SUFFIXES list.
@@ -52,20 +73,30 @@ class Graphite:
         try:
             info("Fetching data from Graphite...")
             result = []
-            if selector is None:
-                selector = "*"
+            if selector.metrics is not None:
+                metrics = "{" + ",".join(selector.metrics) + "}"
+            else:
+                metrics = "*"
+            from_time = to_graphite_time(selector.from_time, "-365d")
+            until_time = to_graphite_time(selector.until_time, "now")
             for suffix in self.__suffixes:
                 url = f"{self.__url}render" \
-                      f"?target={prefix}.{suffix}.{selector}" \
+                      f"?target={prefix}.{suffix}.{metrics}" \
                       f"&format=json" \
-                      f"&from=-365days"
+                      f"&from={from_time}" \
+                      f"&until={until_time}"
                 data_str = urllib.request.urlopen(url).read()
                 data_as_json = json.loads(data_str)
                 for s in data_as_json:
                     series = TimeSeries(
                         name=s["target"],
                         points=decode_graphite_datapoints(s))
-                    result.append(series)
+                    if len(series.points) > 5:
+                        result.append(series)
+                    else:
+                        warning(
+                            f"Not enough data points in series {series.name}. "
+                            f"Required at least 5 points.")
 
             return result
 

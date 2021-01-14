@@ -34,7 +34,7 @@ class ChangePoint:
     changes: List[Change]
 
 
-class TestResults:
+class PerformanceLog:
     """
     Stores values of interesting metrics of all runs of
     a fallout test indexed by a single time variable.
