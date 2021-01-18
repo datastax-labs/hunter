@@ -12,6 +12,7 @@ import pystache
 from hunter import config
 from hunter.config import ConfigError
 from hunter.fallout import Fallout, FalloutError
+from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError, DataSelector
 from hunter.importer import FalloutImporter, DataImportError
 from hunter.report import Report
@@ -50,6 +51,46 @@ def analyze_runs(
 
     report = Report(results)
     print(report.format_log_annotated())
+    exit(0)
+
+
+def update_grafana(fallout: Fallout,
+                   graphite: Graphite,
+                   grafana: Grafana,
+                   test: str,
+                   user: Optional[str],
+                   selector: DataSelector):
+    results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
+    results.find_change_points()
+
+    logging.info("Determining new Grafana annotations...")
+    annotations = []
+    for change_point in results.change_points:
+        for change in change_point.changes:
+            metric = change.metric
+            relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(metric)
+            for dashboard_panel in relevant_dashboard_panels:
+                # Grafana timestamps have 13 digits, Graphite timestamps have 10 (hence multiplication by 10^3)
+                # TODO: Replace text field with Fallout test run URL, eventually
+                annotations.append(
+                    Annotation(
+                        dashboard_id=dashboard_panel["dashboard id"],
+                        panel_id=dashboard_panel["panel id"],
+                        time=change.time * 10**3,
+                        text=metric,
+                        tags=dashboard_panel["tags"]
+                    )
+                )
+
+    if len(annotations) == 0:
+        logging.info("No Grafana panels to update")
+    else:
+        logging.info("Updating Grafana with latest annotations...")
+        for annotation in annotations:
+            # remove any existing annotations that have the same dashboard id, panel id, and set of tags
+            grafana.delete_matching_annotations(annotation=annotation)
+        for annotation in annotations:
+            grafana.post_annotation(annotation)
     exit(0)
 
 
@@ -95,6 +136,24 @@ def main():
         "--until",
         dest="until_time",
         help="the end of the time span to analyze; same syntax as --from")
+    update_grafana_parser = subparsers.add_parser(
+        "update_grafana",
+        help="analyze performance test results, update relevant Grafana charts with annotations "
+             "for determined changepoints")
+    update_grafana_parser.add_argument("test", help="name of the test in Fallout")
+    update_grafana_parser.add_argument(
+        "--metrics",
+        dest="metrics",
+        help="comma separated list of metrics to analyze")
+    update_grafana_parser.add_argument(
+        "--from",
+        dest="from_time",
+        help="the start of the time span to analyze; "
+             "accepts ISO, and human-readable dates like '10 weeks ago'")
+    update_grafana_parser.add_argument(
+        "--until",
+        dest="until_time",
+        help="the end of the time span to analyze; same syntax as --from")
 
     try:
         args = parser.parse_args()
@@ -116,6 +175,14 @@ def main():
             data_selector.from_time = parse_date(args.from_time)
             data_selector.until_time = parse_date(args.until_time)
             analyze_runs(fallout, graphite, args.test, user, data_selector)
+        if args.command == "update_grafana":
+            grafana = Grafana(conf.grafana)
+            data_selector = DataSelector()
+            if args.metrics is not None:
+                data_selector.metrics = list(args.metrics.split(","))
+            data_selector.from_time = parse_date(args.from_time)
+            data_selector.until_time = parse_date(args.until_time)
+            update_grafana(fallout, graphite, grafana, args.test, user, data_selector)
         if args.command is None:
             parser.print_usage()
 
@@ -126,6 +193,9 @@ def main():
         logging.error(err.message)
         exit(1)
     except GraphiteError as err:
+        logging.error(err.message)
+        exit(1)
+    except GrafanaError as err:
         logging.error(err.message)
         exit(1)
     except DataImportError as err:

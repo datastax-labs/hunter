@@ -81,7 +81,7 @@ class Graphite:
             until_time = to_graphite_time(selector.until_time, "now")
             for suffix in self.__suffixes:
                 url = f"{self.__url}render" \
-                      f"?target={prefix}.{suffix}.{metrics}" \
+                      f"?target={prefix}.{suffix}{metrics}" \
                       f"&format=json" \
                       f"&from={from_time}" \
                       f"&until={until_time}"
