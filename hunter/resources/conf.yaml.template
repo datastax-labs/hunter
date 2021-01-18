@@ -17,3 +17,4 @@ grafana:
     url: http://history.datastax.lan:3000/
     user: admin
     password: admin
+

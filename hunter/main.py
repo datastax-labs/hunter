@@ -1,16 +1,19 @@
 import argparse
 import logging
 import os
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import dateparser
 import pystache
 
 from hunter import config
 from hunter.config import ConfigError
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
-from hunter.graphite import Graphite, GraphiteError
+from hunter.graphite import Graphite, GraphiteError, DataSelector
 from hunter.importer import FalloutImporter, DataImportError
 from hunter.report import Report
 
@@ -42,7 +45,7 @@ def analyze_runs(
         graphite: Graphite,
         test: str,
         user: Optional[str],
-        selector: Optional[str]):
+        selector: DataSelector):
     results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
     results.find_change_points()
 
@@ -56,7 +59,7 @@ def update_grafana(fallout: Fallout,
                    grafana: Grafana,
                    test: str,
                    user: Optional[str],
-                   selector: Optional[str]):
+                   selector: DataSelector):
     results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
     results.find_change_points()
 
@@ -91,6 +94,20 @@ def update_grafana(fallout: Fallout,
     exit(0)
 
 
+@dataclass
+class DateFormatError(ValueError):
+    message: str
+
+
+def parse_date(date: Optional[str]) -> Optional[datetime]:
+    if date is None:
+        return None
+    parsed = dateparser.parse(date)
+    if parsed is None:
+        raise DateFormatError(f"Invalid date: {date}")
+    return parsed
+
+
 def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
@@ -103,12 +120,22 @@ def main():
     subparsers.add_parser("list", help="list available tests")
     analyze_parser = subparsers.add_parser(
         "analyze",
-        help="analyze performance test results")
+        help="analyze performance test results",
+        formatter_class=argparse.RawTextHelpFormatter)
     analyze_parser.add_argument("test", help="name of the test in Fallout")
     analyze_parser.add_argument(
         "--metrics",
         dest="metrics",
-        help="metrics selector, passed to graphite")
+        help="comma separated list of metrics to analyze")
+    analyze_parser.add_argument(
+        "--from",
+        dest="from_time",
+        help="the start of the time span to analyze; "
+             "accepts ISO, and human-readable dates like '10 weeks ago'")
+    analyze_parser.add_argument(
+        "--until",
+        dest="until_time",
+        help="the end of the time span to analyze; same syntax as --from")
     update_grafana_parser = subparsers.add_parser(
         "update_grafana",
         help="analyze performance test results, update relevant Grafana charts with annotations "
@@ -117,7 +144,16 @@ def main():
     update_grafana_parser.add_argument(
         "--metrics",
         dest="metrics",
-        help="metrics selector, passed to graphite")
+        help="comma separated list of metrics to analyze")
+    update_grafana_parser.add_argument(
+        "--from",
+        dest="from_time",
+        help="the start of the time span to analyze; "
+             "accepts ISO, and human-readable dates like '10 weeks ago'")
+    update_grafana_parser.add_argument(
+        "--until",
+        dest="until_time",
+        help="the end of the time span to analyze; same syntax as --from")
 
     try:
         args = parser.parse_args()
@@ -133,10 +169,20 @@ def main():
         if args.command == "list":
             list_tests(fallout, user)
         if args.command == "analyze":
-            analyze_runs(fallout, graphite, args.test, user, args.metrics)
+            data_selector = DataSelector()
+            if args.metrics is not None:
+                data_selector.metrics = list(args.metrics.split(","))
+            data_selector.from_time = parse_date(args.from_time)
+            data_selector.until_time = parse_date(args.until_time)
+            analyze_runs(fallout, graphite, args.test, user, data_selector)
         if args.command == "update_grafana":
             grafana = Grafana(conf.grafana)
-            update_grafana(fallout, graphite, grafana, args.test, user, args.metrics)
+            data_selector = DataSelector()
+            if args.metrics is not None:
+                data_selector.metrics = list(args.metrics.split(","))
+            data_selector.from_time = parse_date(args.from_time)
+            data_selector.until_time = parse_date(args.until_time)
+            update_grafana(fallout, graphite, grafana, args.test, user, data_selector)
         if args.command is None:
             parser.print_usage()
 
@@ -153,6 +199,9 @@ def main():
         logging.error(err.message)
         exit(1)
     except DataImportError as err:
+        logging.error(err.message)
+        exit(1)
+    except DateFormatError as err:
         logging.error(err.message)
         exit(1)
 

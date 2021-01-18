@@ -2,7 +2,7 @@ from typing import List
 
 from tabulate import tabulate
 
-from hunter.analysis import TestResults
+from hunter.analysis import PerformanceLog
 from hunter.util import format_timestamp, remove_common_prefix, insert_multiple
 
 
@@ -11,9 +11,9 @@ def column_widths(log: List[str]) -> List[int]:
 
 
 class Report:
-    __results: TestResults
+    __results: PerformanceLog
 
-    def __init__(self, results: TestResults):
+    def __init__(self, results: PerformanceLog):
         self.__results = results
 
     def format_log(self) -> str:
