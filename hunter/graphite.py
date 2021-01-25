@@ -1,3 +1,4 @@
+import ast
 import json
 import urllib.request
 from dataclasses import dataclass
@@ -56,6 +57,48 @@ class DataSelector:
         self.until_time = None
 
 
+@dataclass
+class GraphiteEventData:
+    test_owner: str
+    test_name: str
+    run_id: str
+    status: str
+    start_time: int
+    end_time: int
+    version: Optional[str]
+    branch: Optional[str]
+    commit: Optional[str]
+
+    def __init__(self,
+                 test_owner: str,
+                 test_name: str,
+                 run_id: str,
+                 status: str,
+                 start_time: str,
+                 end_time: str,
+                 version: Optional[str],
+                 branch: Optional[str],
+                 commit: Optional[str]):
+        self.test_owner = test_owner
+        self.test_name = test_name
+        self.run_id = run_id,
+        self.status = status,
+        self.start_time = start_time
+        self.end_time = end_time
+        if len(version) == 0 or version == 'null':
+            self.version = None
+        else:
+            self.version = version
+        if len(branch) == 0 or branch == 'null':
+            self.branch = None
+        else:
+            self.branch = branch
+        if len(commit) == 0 or commit == 'null':
+            self.commit = None
+        else:
+            self.commit = commit
+
+
 class Graphite:
     __url: str
     __suffixes: List[str]
@@ -63,6 +106,40 @@ class Graphite:
     def __init__(self, conf: GraphiteConfig):
         self.__url = conf.url
         self.__suffixes = conf.suffixes
+
+    def fetch_event_data(self, fallout_user: str, test_name: str, timestamp: int) -> Optional[GraphiteEventData]:
+        """
+        Queries the Graphite events API endpoint, and filters down the returned events which have data that matches all
+        of the following criteria:
+        - the Fallout user of interest
+        - the Fallout test of interest
+        - start and end timestamps for Fallout run which passed in metric timestamp is bounded between
+
+        References:
+            - Graphite events REST API: https://graphite.readthedocs.io/en/stable/events.html
+            - Haxx: https://github.com/riptano/haxx/pull/588
+        """
+        try:
+            url = f"{self.__url}events/get_data"
+            data_str = urllib.request.urlopen(url).read()
+            data_as_json = json.loads(data_str)
+            performance_test_events = filter(lambda event: event.get("what") == "Performance Test", data_as_json)
+            performance_test_events_data = map(lambda event: ast.literal_eval(event.get("data")), performance_test_events)
+            candidate_events_data = list(filter(lambda event_data: event_data["test_name"] == test_name and
+                                                          event_data["test_owner"] == fallout_user and
+                                                          event_data["start_time"] <= timestamp
+                                                          <= event_data["end_time"], performance_test_events_data))
+            test_event_data = None
+            if len(candidate_events_data) > 1:
+                warning(f"Found multiple potential Graphite events for {fallout_user}'s test {test_name} "
+                        f"with metric timestamp {candidate_events_data}")
+            elif len(candidate_events_data) == 1:
+                test_event_data = GraphiteEventData(**candidate_events_data[0])
+            else:
+                warning(f"No Graphite events for {fallout_user}'s test {test_name} with metric timestamp {timestamp}")
+            return test_event_data
+        except IOError as e:
+            raise GraphiteError(f"Failed to fetch Graphite events: {str(e)}")
 
     def fetch(self, prefix: str, selector: DataSelector) \
             -> List[TimeSeries]:

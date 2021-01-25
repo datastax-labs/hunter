@@ -95,6 +95,9 @@ class Fallout:
         except IOError as err:
             raise FalloutError(f"Failed to communicate with Fallout: {str(err)}")
 
+    def get_user(self) -> str:
+        return self.__user
+
     def get_test(self, test_name: str, user: Optional[str] = None) \
             -> FalloutTest:
         """"Returns YAML of the Fallout test with the given name"""
@@ -119,3 +122,8 @@ class Fallout:
             user = self.__user
         return [t['name'] for t in self.__api.list_tests(user)]
 
+    def get_test_url(self, test_name: str) -> str:
+        return f"{self.__api.endpoint_url}tests/ui/{self.__user}/{test_name}"
+
+    def get_test_run_url(self, test_name: str, testrun_id: str) -> str:
+        return f"{self.get_test_url(test_name=test_name)}/{testrun_id}/artifacts"
