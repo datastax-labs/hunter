@@ -4,7 +4,7 @@ fallout:
     user: {{fallout_user}}
     token: {{fallout_token}}
 graphite:
-    url: http://history.datastax.lan/
+    url: http://history.sjc.dsinternal.org/
     suffixes:
         - ebdse_read.result
         - ebdse_write.result
