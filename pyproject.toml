@@ -6,6 +6,7 @@ authors = ["Piotr Kołaczkowski <pkolaczk@datastax.com>"]
 
 [tool.poetry.dependencies]
 dateparser = "^1.0.0"
+numpy = "1.19"
 python = "^3.8"
 python-dateutil = "^2.8.1"
 signal-processing-algorithms = "^1.2.5"
@@ -17,6 +18,13 @@ tabulate = "^0.8.7"
 fallout-client = {git = "ssh://git@github.com/riptano/fallout.git"}
 
 [tool.poetry.dev-dependencies]
+pytest = "^6.2.2"
+pytz = "2021.1"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:future"
+]
 
 [tool.poetry.scripts]
 hunter = 'hunter.main:main'

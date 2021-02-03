@@ -1,8 +1,13 @@
 import datetime
 import sys
 from collections import deque
+from dataclasses import dataclass
+from datetime import datetime
 from itertools import islice
-from typing import List, TypeVar, Set, Dict
+from typing import List, TypeVar, Optional
+
+import dateparser
+from pytz import UTC
 
 
 def remove_prefix(text: str, prefix: str) -> str:
@@ -66,7 +71,9 @@ def eprint(*args, **kwargs):
 
 
 def format_timestamp(ts: int) -> str:
-    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime\
+        .fromtimestamp(ts, tz=UTC)\
+        .strftime("%Y-%m-%d %H:%M:%S %z")
 
 
 def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> List[T]:
@@ -79,6 +86,27 @@ def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> L
             result.append(next(new_items_iter))
         result.append(x)
     return result
+
+
+@dataclass
+class DateFormatError(ValueError):
+    message: str
+
+
+def parse_datetime(date: Optional[str]) -> Optional[datetime]:
+    """
+    Converts a human-readable string into a datetime object.
+    Accepts many formats and many languages, see dateparser package.
+    Raises DataFormatError if the input string format hasn't been recognized.
+    """
+    if date is None:
+        return None
+    parsed: datetime = dateparser.parse(
+        date,
+        settings={'RETURN_AS_TIMEZONE_AWARE': True})
+    if parsed is None:
+        raise DateFormatError(f"Invalid datetime value: {date}")
+    return parsed
 
 
 def sliding_window(iterable, size):
