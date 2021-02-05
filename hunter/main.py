@@ -11,6 +11,7 @@ import pystache
 
 from hunter import config
 from hunter.config import ConfigError
+from hunter.event_processor import EventProcessor
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError, DataSelector
@@ -65,23 +66,27 @@ def update_grafana(fallout: Fallout,
 
     logging.info("Determining new Grafana annotations...")
     annotations = []
+    event_processor = EventProcessor(fallout, graphite)
     for change_point in results.change_points:
         for change in change_point.changes:
-            metric = change.metric
-            relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(metric)
-            for dashboard_panel in relevant_dashboard_panels:
-                # Grafana timestamps have 13 digits, Graphite timestamps have 10 (hence multiplication by 10^3)
-                # TODO: Replace text field with Fallout test run URL, eventually
-                annotations.append(
-                    Annotation(
-                        dashboard_id=dashboard_panel["dashboard id"],
-                        panel_id=dashboard_panel["panel id"],
-                        time=change.time * 10**3,
-                        text=metric,
-                        tags=dashboard_panel["tags"]
-                    )
+            relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
+            if len(relevant_dashboard_panels) > 0:
+                # determine Fallout and GitHub hyperlinks for displaying in annotation
+                annotation_text = event_processor.get_html_from_test_run_event(
+                    test_name=test,
+                    timestamp=change.time
                 )
-
+                for dashboard_panel in relevant_dashboard_panels:
+                    # Grafana timestamps have 13 digits, Graphite timestamps have 10 (hence multiplication by 10^3)
+                    annotations.append(
+                        Annotation(
+                            dashboard_id=dashboard_panel["dashboard id"],
+                            panel_id=dashboard_panel["panel id"],
+                            time=change.time * 10**3,
+                            text=annotation_text,
+                            tags=dashboard_panel["tags"]
+                        )
+                    )
     if len(annotations) == 0:
         logging.info("No Grafana panels to update")
     else:
