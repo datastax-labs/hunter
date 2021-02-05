@@ -4,6 +4,10 @@ from typing import Optional, Tuple
 
 
 class EventProcessor:
+    """
+    This class provides methods for the processing of metadata stored in Graphite events associated to performance tests,
+    and getting appropriate URLs to Fallout tests/test-runs and GitHub branches/commits.
+    """
     fallout: Fallout
     graphite: Graphite
 
