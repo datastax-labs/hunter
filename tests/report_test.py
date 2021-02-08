@@ -1,4 +1,5 @@
-from hunter.report import *
+from hunter.analysis import PerformanceLog
+from hunter.report import Report
 
 
 def test_report():

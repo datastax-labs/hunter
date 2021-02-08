@@ -1,28 +1,28 @@
 import argparse
 import logging
 import os
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import dateparser
 import pystache
 
 from hunter import config
-from hunter.config import ConfigError
+from hunter.config import ConfigError, Config
 from hunter.event_processor import EventProcessor
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError, DataSelector
-from hunter.importer import FalloutImporter, DataImportError
+from hunter.importer import FalloutImporter, DataImportError, CsvImporter, \
+    CsvOptions
 from hunter.report import Report
+from hunter.util import parse_datetime, DateFormatError
 
 
 def setup():
     fallout_user = input("Fallout user name (email): ")
     fallout_token = input("Fallout token: ")
-    conf_template = (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
+    conf_template = \
+        (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
     conf_yaml = pystache.render(conf_template, {
         'fallout_token': fallout_token,
         'fallout_user': fallout_user
@@ -35,32 +35,44 @@ def setup():
     exit(0)
 
 
-def list_tests(fallout: Fallout, user: Optional[str]):
+def list_tests(conf: Config, user: Optional[str]):
+    fallout = Fallout(conf.fallout)
     for test_name in fallout.list_tests(user):
         print(test_name)
     exit(0)
 
 
 def analyze_runs(
-        fallout: Fallout,
-        graphite: Graphite,
+        conf: Config,
+        csv_options: CsvOptions,
         test: str,
         user: Optional[str],
         selector: DataSelector):
-    results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
-    results.find_change_points()
 
+    if test.lower().endswith("csv"):
+        importer = CsvImporter(csv_options)
+        results = importer.fetch(Path(test), selector=selector)
+    else:
+        fallout = Fallout(conf.fallout)
+        graphite = Graphite(conf.graphite)
+        importer = FalloutImporter(fallout, graphite)
+        results = importer.fetch(test, user, selector)
+
+    results.find_change_points()
     report = Report(results)
     print(report.format_log_annotated())
     exit(0)
 
 
-def update_grafana(fallout: Fallout,
-                   graphite: Graphite,
-                   grafana: Grafana,
+def update_grafana(conf: Config,
                    test: str,
                    user: Optional[str],
                    selector: DataSelector):
+
+    grafana = Grafana(conf.grafana)
+    fallout = Fallout(conf.fallout)
+    graphite = Graphite(conf.graphite)
+
     results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
     results.find_change_points()
 
@@ -99,18 +111,15 @@ def update_grafana(fallout: Fallout,
     exit(0)
 
 
-@dataclass
-class DateFormatError(ValueError):
-    message: str
-
-
-def parse_date(date: Optional[str]) -> Optional[datetime]:
-    if date is None:
-        return None
-    parsed = dateparser.parse(date)
-    if parsed is None:
-        raise DateFormatError(f"Invalid date: {date}")
-    return parsed
+def csv_options_from_args(args: argparse.Namespace):
+    csv_options = CsvOptions()
+    if args.csv_delimiter is not None:
+        csv_options.delimiter = args.csv_delimiter
+    if args.csv_quote_char is not None:
+        csv_options.quote_char = args.csv_quote_char
+    if args.csv_time_column is not None:
+        csv_options.time_column = args.csv_time_column
+    return csv_options
 
 
 def main():
@@ -127,20 +136,45 @@ def main():
         "analyze",
         help="analyze performance test results",
         formatter_class=argparse.RawTextHelpFormatter)
-    analyze_parser.add_argument("test", help="name of the test in Fallout")
+    analyze_parser.add_argument(
+        "test",
+        help="name of the test in Fallout or path to a CSV file with data")
     analyze_parser.add_argument(
         "--metrics",
+        metavar="LIST",
         dest="metrics",
         help="comma separated list of metrics to analyze")
     analyze_parser.add_argument(
         "--from",
+        metavar="DATE",
         dest="from_time",
         help="the start of the time span to analyze; "
              "accepts ISO, and human-readable dates like '10 weeks ago'")
     analyze_parser.add_argument(
         "--until",
+        metavar="DATE",
         dest="until_time",
         help="the end of the time span to analyze; same syntax as --from")
+    analyze_parser.add_argument(
+        "--csv-delimiter",
+        metavar="CHAR",
+        dest="csv_delimiter",
+        default=",",
+        help="CSV column separator [default: ',']")
+    analyze_parser.add_argument(
+        "--csv-quote",
+        metavar="CHAR",
+        dest="csv_quote_char",
+        default='"',
+        help="CSV value quote character [default: '\"']")
+    analyze_parser.add_argument(
+        "--csv-time-column",
+        metavar="COLUMN",
+        dest="csv_time_column",
+        default="time",
+        help="Name of the column storing the timestamp of each run "
+             "[default: 'time']")
+
     update_grafana_parser = subparsers.add_parser(
         "update_grafana",
         help="analyze performance test results, update relevant Grafana charts with annotations "
@@ -168,26 +202,23 @@ def main():
             setup()
 
         conf = config.load_config()
-        fallout = Fallout(conf.fallout)
-        graphite = Graphite(conf.graphite)
-
         if args.command == "list":
-            list_tests(fallout, user)
+            list_tests(conf, user)
         if args.command == "analyze":
+            csv_options = csv_options_from_args(args)
             data_selector = DataSelector()
             if args.metrics is not None:
                 data_selector.metrics = list(args.metrics.split(","))
-            data_selector.from_time = parse_date(args.from_time)
-            data_selector.until_time = parse_date(args.until_time)
-            analyze_runs(fallout, graphite, args.test, user, data_selector)
-        if args.command == "update_grafana":
-            grafana = Grafana(conf.grafana)
+            data_selector.from_time = parse_datetime(args.from_time)
+            data_selector.until_time = parse_datetime(args.until_time)
+            analyze_runs(conf, csv_options, args.test, user, data_selector)
+        if args.command == "update-grafana":
             data_selector = DataSelector()
             if args.metrics is not None:
                 data_selector.metrics = list(args.metrics.split(","))
-            data_selector.from_time = parse_date(args.from_time)
-            data_selector.until_time = parse_date(args.until_time)
-            update_grafana(fallout, graphite, grafana, args.test, user, data_selector)
+            data_selector.from_time = parse_datetime(args.from_time)
+            data_selector.until_time = parse_datetime(args.until_time)
+            update_grafana(conf, args.test, user, data_selector)
         if args.command is None:
             parser.print_usage()
 
