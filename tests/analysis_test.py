@@ -1,7 +1,7 @@
 from random import random
 import time
 
-from hunter.analysis import PerformanceLog
+from hunter.analysis import PerformanceLog, fill_missing
 
 
 def test_change_point_detection():
@@ -29,3 +29,15 @@ def test_change_point_detection_performance():
         log.find_change_points()
     end_time = time.process_time()
     assert (end_time - start_time) < 0.5
+
+
+def test_fill_missing():
+    list1 = [None, None, 1.0, 1.2, 0.5]
+    list2 = [1.0, 1.2, None, None, 4.3]
+    list3 = [1.0, 1.2, 0.5, None, None]
+    fill_missing(list1)
+    fill_missing(list2)
+    fill_missing(list3)
+    assert list1 == [1.0, 1.0, 1.0, 1.2, 0.5]
+    assert list2 == [1.0, 1.2, 1.2, 1.2, 4.3]
+    assert list3 == [1.0, 1.2, 0.5, 0.5, 0.5]

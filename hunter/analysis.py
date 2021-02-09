@@ -14,6 +14,24 @@ from signal_processing_algorithms.e_divisive.significance_test import \
 from hunter.util import sliding_window
 
 
+def fill_missing(data: List[float]):
+    """
+    Forward-fills None occurrences with nearest previous non-None values.
+    Initial None values are back-filled with the nearest future non-None value.
+    """
+    prev = None
+    for i in range(len(data)):
+        if data[i] is None and prev is not None:
+            data[i] = prev
+        prev = data[i]
+
+    prev = None
+    for i in reversed(range(len(data))):
+        if data[i] is None and prev is not None:
+            data[i] = prev
+        prev = data[i]
+
+
 @dataclass
 class Change:
     metric: str
@@ -76,6 +94,8 @@ class PerformanceLog:
                              calculator=calculator,
                              significance_tester=tester)
 
+            values = values.copy()
+            fill_missing(values)
             init = EDivisiveChangePoint(0)
             end = EDivisiveChangePoint(len(values))
             change_points = algo.get_change_points(values)
