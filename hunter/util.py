@@ -124,3 +124,21 @@ def sliding_window(iterable, size):
         # needed because if iterable was already empty before the `for`,
         # then the window would be yielded twice.
         yield tuple(window)
+
+
+def is_float(value) -> bool:
+    """Returns true if value can be converted to a float"""
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
+def is_datetime(value) -> bool:
+    """Returns true if value can be parsed as a date"""
+    try:
+        parse_datetime(value)
+        return True
+    except DateFormatError:
+        return False

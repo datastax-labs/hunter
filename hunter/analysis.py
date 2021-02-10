@@ -49,6 +49,9 @@ class Change:
 class ChangePoint:
     index: int
     time: int
+    prev_time: int
+    attributes: Dict[str, str]
+    prev_attributes: Dict[str, str]
     changes: List[Change]
 
 
@@ -61,21 +64,34 @@ class PerformanceLog:
 
     test_name: str
     time: List[int]
-    values: Dict[str, List[float]]
+    attributes: Dict[str, List[str]]
+    data: Dict[str, List[float]]
     change_points: Optional[List[ChangePoint]]
 
     def __init__(self,
                  test_name: str,
                  time: List[int],
-                 values: Dict[str, List[float]]):
+                 data: Dict[str, List[float]],
+                 metadata: Dict[str, List[str]]):
         self.test_name = test_name
         self.time = time
-        self.values = values
+        self.attributes = metadata
+        self.data = data
         self.change_points = None
+        assert all(len(x) == len(time) for x in data.values())
+        assert all(len(x) == len(time) for x in metadata.values())
+
+    def attributes_at(self, index: int) -> Dict[str, str]:
+        result = {}
+        for (k, v) in self.attributes.items():
+            result[k] = v[index]
+        return result
 
     def find_change_points(self) -> List[ChangePoint]:
         if self.change_points is not None:
             return self.change_points
+        if len(self.time) == 0:
+            return []
 
         logging.info("Computing change points...")
         calculator = cext_calculator
@@ -83,7 +99,7 @@ class PerformanceLog:
             calculator, pvalue=0.05, permutations=100
         )
         changes: List[Change] = []
-        for metric, values in self.values.items():
+        for metric, values in self.data.items():
             # We need to initialize a fresh algo instance for each metric
             # because calling get_change_points
             # on the same instance modifies the internal state and
@@ -123,7 +139,13 @@ class PerformanceLog:
         changes.sort(key=lambda c: c.index)
         points = []
         for k, g in groupby(changes, key=lambda c: c.index):
-            cp = ChangePoint(index=k, time=self.time[k], changes=list(g))
+            cp = ChangePoint(
+                index=k,
+                time=self.time[k],
+                prev_time=self.time[k - 1],
+                attributes=self.attributes_at(k),
+                prev_attributes=self.attributes_at(k - 1),
+                changes=list(g))
             points.append(cp)
 
         self.change_points = points

@@ -18,9 +18,11 @@ class Report:
 
     def format_log(self) -> str:
         time_column = [format_timestamp(ts) for ts in self.__results.time]
-        table = {"time": time_column, **self.__results.values}
-        metrics = list(self.__results.values.keys())
-        headers = ["time", *remove_common_prefix(metrics)]
+        table = {"time": time_column,
+                 **self.__results.attributes,
+                 **self.__results.data}
+        metrics = list(self.__results.data.keys())
+        headers = ["time", *self.__results.attributes, *remove_common_prefix(metrics)]
         return tabulate(table, headers=headers)
 
     def format_log_annotated(self) -> str:
@@ -30,12 +32,12 @@ class Report:
         col_widths = column_widths(lines)
         indexes = [cp.index for cp in change_points]
         separators = []
-        metrics = list(self.__results.values.keys())
+        columns = [*self.__results.attributes.keys(), *self.__results.data.keys()]
         for cp in change_points:
             separator = " " * col_widths[0]
             info = " " * col_widths[0]
-            for col_index, col_name in enumerate(metrics):
-                col_width = col_widths[col_index + 1]
+            for col_index, col_name in enumerate(columns):
+                col_width = col_widths[1 + col_index]
                 change = [c for c in cp.changes if c.metric == col_name]
                 if change:
                     change = change[0]
