@@ -1,9 +1,10 @@
+from collections import OrderedDict
 from typing import List
 
 from tabulate import tabulate
 
 from hunter.analysis import PerformanceLog
-from hunter.util import format_timestamp, remove_common_prefix, insert_multiple
+from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 
 
 def column_widths(log: List[str]) -> List[int]:
@@ -22,7 +23,8 @@ class Report:
                  **self.__results.attributes,
                  **self.__results.data}
         metrics = list(self.__results.data.keys())
-        headers = ["time", *self.__results.attributes, *remove_common_prefix(metrics)]
+        headers = list(OrderedDict.fromkeys(
+            ["time", *self.__results.attributes, *remove_common_prefix(metrics)]))
         return tabulate(table, headers=headers)
 
     def format_log_annotated(self) -> str:
@@ -32,18 +34,19 @@ class Report:
         col_widths = column_widths(lines)
         indexes = [cp.index for cp in change_points]
         separators = []
-        columns = [*self.__results.attributes.keys(), *self.__results.data.keys()]
+        columns = list(OrderedDict.fromkeys(
+            ["time", *self.__results.attributes, *self.__results.data]))
         for cp in change_points:
-            separator = " " * col_widths[0]
-            info = " " * col_widths[0]
+            separator = ""
+            info = ""
             for col_index, col_name in enumerate(columns):
-                col_width = col_widths[1 + col_index]
+                col_width = col_widths[col_index]
                 change = [c for c in cp.changes if c.metric == col_name]
                 if change:
                     change = change[0]
                     change_percent = change.change_percent()
-                    separator += "  " + "·" * col_width
-                    info += "  " + f"{change_percent:+.1f}%".rjust(col_width)
+                    separator += "·" * col_width + "  "
+                    info += f"{change_percent:+.1f}%".rjust(col_width) + "  "
                 else:
                     separator += " " * (col_width + 2)
                     info += " " * (col_width + 2)
