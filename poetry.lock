@@ -92,7 +92,7 @@ python-versions = "*"
 
 [[package]]
 name = "fallout-client"
-version = "1.209.0"
+version = "1.211.0"
 description = "Fallout API and Command-line Client"
 category = "main"
 optional = false
@@ -112,7 +112,7 @@ setuptools-scm = ">=3.3.3,<3.4.0"
 type = "git"
 url = "ssh://git@github.com/riptano/fallout.git"
 reference = "master"
-resolved_reference = "bcfd996bb3e9ea3dca25b94fb01a4cf643fec812"
+resolved_reference = "ca68b76ec657495d41c91111391d99a1f3aaf82d"
 
 [[package]]
 name = "future"
@@ -192,7 +192,7 @@ structlog = ">=19"
 
 [[package]]
 name = "more-itertools"
-version = "8.6.0"
+version = "8.7.0"
 description = "More routines for operating on iterables, beyond itertools"
 category = "main"
 optional = false
@@ -480,7 +480,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "31463c36e24ea37ea094e479b5c4dc5f4a2b577b106d2e0ff8888714b244a13d"
+content-hash = "bd26c59597a6602152386592b33e60760701ff4afb0fb0e1ecfce62c5e75377a"
 
 [metadata.files]
 ansicon = [
@@ -543,8 +543,8 @@ misc-utils-py = [
     {file = "misc_utils_py-0.1.2-py3-none-any.whl", hash = "sha256:692fd19d9464d5f1410f24558ec7635aa8bc0dc7e342721db896e60544564177"},
 ]
 more-itertools = [
-    {file = "more-itertools-8.6.0.tar.gz", hash = "sha256:b3a9005928e5bed54076e6e549c792b306fddfe72b2d1d22dd63d42d5d3899cf"},
-    {file = "more_itertools-8.6.0-py3-none-any.whl", hash = "sha256:8e1a2a43b2f2727425f2b5839587ae37093f19153dc26c0927d1048ff6557330"},
+    {file = "more-itertools-8.7.0.tar.gz", hash = "sha256:c5d6da9ca3ff65220c3bfd2a8db06d698f05d4d2b9be57e1deb2be5a45019713"},
+    {file = "more_itertools-8.7.0-py3-none-any.whl", hash = "sha256:5652a9ac72209ed7df8d9c15daf4e1aa0e3d2ccd3c87f8265a0673cd9cbc9ced"},
 ]
 numpy = [
     {file = "numpy-1.19.0-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:63d971bb211ad3ca37b2adecdd5365f40f3b741a455beecba70fd0dde8b2a4cb"},

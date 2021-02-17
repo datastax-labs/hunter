@@ -1,10 +1,12 @@
 import argparse
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import pystache
+import pytz
 
 from hunter import config
 from hunter.config import ConfigError, Config
@@ -86,7 +88,7 @@ def update_grafana(conf: Config,
                 # determine Fallout and GitHub hyperlinks for displaying in annotation
                 annotation_text = event_processor.get_html_from_test_run_event(
                     test_name=test,
-                    timestamp=change.time
+                    timestamp=datetime.fromtimestamp(change.time, tz=pytz.UTC)
                 )
                 for dashboard_panel in relevant_dashboard_panels:
                     # Grafana timestamps have 13 digits, Graphite timestamps have 10 (hence multiplication by 10^3)
@@ -111,7 +113,28 @@ def update_grafana(conf: Config,
     exit(0)
 
 
-def csv_options_from_args(args: argparse.Namespace):
+def setup_csv_options_parser(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--csv-delimiter",
+        metavar="CHAR",
+        dest="csv_delimiter",
+        default=",",
+        help="CSV column separator [default: ',']")
+    parser.add_argument(
+        "--csv-quote",
+        metavar="CHAR",
+        dest="csv_quote_char",
+        default='"',
+        help="CSV value quote character [default: '\"']")
+    parser.add_argument(
+        "--csv-time-column",
+        metavar="COLUMN",
+        dest="csv_time_column",
+        help="Name of the column storing the timestamp of each run; "
+             "if not given, hunter will try to autodetect from value types")
+
+
+def csv_options_from_args(args: argparse.Namespace) -> CsvOptions:
     csv_options = CsvOptions()
     if args.csv_delimiter is not None:
         csv_options.delimiter = args.csv_delimiter
@@ -120,6 +143,43 @@ def csv_options_from_args(args: argparse.Namespace):
     if args.csv_time_column is not None:
         csv_options.time_column = args.csv_time_column
     return csv_options
+
+
+def setup_data_selector_parser(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "--metrics",
+        metavar="LIST",
+        dest="metrics",
+        help="a comma-separated list of metrics to analyze")
+    parser.add_argument(
+        "--attrs",
+        metavar="LIST",
+        dest="attributes",
+        help="a comma-separated list of attribute names associated with the runs "
+             "(e.g. commit, branch, version); "
+             "if not specified, it will be automatically filled based on available information")
+    parser.add_argument(
+        "--from",
+        metavar="DATE",
+        dest="from_time",
+        help="the start of the time span to analyze; "
+             "accepts ISO, and human-readable dates like '10 weeks ago'")
+    parser.add_argument(
+        "--until",
+        metavar="DATE",
+        dest="until_time",
+        help="the end of the time span to analyze; same syntax as --from")
+
+
+def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
+    data_selector = DataSelector()
+    if args.metrics is not None:
+        data_selector.metrics = list(args.metrics.split(","))
+    if args.attributes is not None:
+        data_selector.attributes = list(args.attributes.split(","))
+    data_selector.from_time = parse_datetime(args.from_time)
+    data_selector.until_time = parse_datetime(args.until_time)
+    return data_selector
 
 
 def main():
@@ -132,6 +192,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("setup", help="run interactive setup")
     subparsers.add_parser("list", help="list available tests")
+
     analyze_parser = subparsers.add_parser(
         "analyze",
         help="analyze performance test results",
@@ -139,60 +200,15 @@ def main():
     analyze_parser.add_argument(
         "test",
         help="name of the test in Fallout or path to a CSV file with data")
-    analyze_parser.add_argument(
-        "--metrics",
-        metavar="LIST",
-        dest="metrics",
-        help="comma separated list of metrics to analyze")
-    analyze_parser.add_argument(
-        "--from",
-        metavar="DATE",
-        dest="from_time",
-        help="the start of the time span to analyze; "
-             "accepts ISO, and human-readable dates like '10 weeks ago'")
-    analyze_parser.add_argument(
-        "--until",
-        metavar="DATE",
-        dest="until_time",
-        help="the end of the time span to analyze; same syntax as --from")
-    analyze_parser.add_argument(
-        "--csv-delimiter",
-        metavar="CHAR",
-        dest="csv_delimiter",
-        default=",",
-        help="CSV column separator [default: ',']")
-    analyze_parser.add_argument(
-        "--csv-quote",
-        metavar="CHAR",
-        dest="csv_quote_char",
-        default='"',
-        help="CSV value quote character [default: '\"']")
-    analyze_parser.add_argument(
-        "--csv-time-column",
-        metavar="COLUMN",
-        dest="csv_time_column",
-        default="time",
-        help="Name of the column storing the timestamp of each run "
-             "[default: 'time']")
+    setup_data_selector_parser(analyze_parser)
+    setup_csv_options_parser(analyze_parser)
 
     update_grafana_parser = subparsers.add_parser(
-        "update_grafana",
+        "update-grafana",
         help="analyze performance test results, update relevant Grafana charts with annotations "
-             "for determined changepoints")
+             "for determined change points")
     update_grafana_parser.add_argument("test", help="name of the test in Fallout")
-    update_grafana_parser.add_argument(
-        "--metrics",
-        dest="metrics",
-        help="comma separated list of metrics to analyze")
-    update_grafana_parser.add_argument(
-        "--from",
-        dest="from_time",
-        help="the start of the time span to analyze; "
-             "accepts ISO, and human-readable dates like '10 weeks ago'")
-    update_grafana_parser.add_argument(
-        "--until",
-        dest="until_time",
-        help="the end of the time span to analyze; same syntax as --from")
+    setup_data_selector_parser(update_grafana_parser)
 
     try:
         args = parser.parse_args()
@@ -206,18 +222,10 @@ def main():
             list_tests(conf, user)
         if args.command == "analyze":
             csv_options = csv_options_from_args(args)
-            data_selector = DataSelector()
-            if args.metrics is not None:
-                data_selector.metrics = list(args.metrics.split(","))
-            data_selector.from_time = parse_datetime(args.from_time)
-            data_selector.until_time = parse_datetime(args.until_time)
+            data_selector = data_selector_from_args(args)
             analyze_runs(conf, csv_options, args.test, user, data_selector)
         if args.command == "update-grafana":
-            data_selector = DataSelector()
-            if args.metrics is not None:
-                data_selector.metrics = list(args.metrics.split(","))
-            data_selector.from_time = parse_datetime(args.from_time)
-            data_selector.until_time = parse_datetime(args.until_time)
+            data_selector = data_selector_from_args(args)
             update_grafana(conf, args.test, user, data_selector)
         if args.command is None:
             parser.print_usage()

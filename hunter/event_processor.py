@@ -1,5 +1,7 @@
+from datetime import datetime
+
 from hunter.fallout import Fallout
-from hunter.graphite import Graphite, GraphiteEventData
+from hunter.graphite import Graphite, GraphiteEvent
 from typing import Optional, Tuple
 
 
@@ -18,8 +20,9 @@ class EventProcessor:
     def __form_hyperlink_html_str(self, url: str, display_text: str) -> str:
         return f'<li><a href="{url}" target="_blank">{display_text}</a></li>'
 
-    def get_html_from_test_run_event(self, test_name, timestamp: int) -> str:
-        testrun_event_data = self.graphite.fetch_event_data(self.fallout.get_user(), test_name, timestamp)
+    def get_html_from_test_run_event(self, test_name, timestamp: datetime) -> str:
+        testrun_event_data = self.graphite.fetch_event(
+            self.fallout.get_user(), test_name, timestamp)
         fallout_url_info = self.get_fallout_url_info(testrun_event_data, test_name)
         fallout_url_display_text = fallout_url_info[0]
         fallout_url = fallout_url_info[1]
@@ -32,7 +35,7 @@ class EventProcessor:
             html_str += self.__form_hyperlink_html_str(github_url, github_url_display_text)
         return html_str
 
-    def get_fallout_url_info(self, testrun_event_data: Optional[GraphiteEventData], test_name: Optional[str]) \
+    def get_fallout_url_info(self, testrun_event_data: Optional[GraphiteEvent], test_name: Optional[str]) \
             -> Tuple[str,str]:
         if testrun_event_data is not None:
             return "Fallout test run", self.fallout.get_test_run_url(
@@ -42,7 +45,7 @@ class EventProcessor:
         else:
             return "Fallout test", self.fallout.get_test_url(test_name)
 
-    def get_github_url_info(self, testrun_event_data: Optional[GraphiteEventData]) -> Optional[Tuple[str, str]]:
+    def get_github_url_info(self, testrun_event_data: Optional[GraphiteEvent]) -> Optional[Tuple[str, str]]:
         """
         TODO: Will we be responsible for handling versioning from repositories aside from bdp?
         """
