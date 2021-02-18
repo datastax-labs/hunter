@@ -41,10 +41,28 @@ to Fallout and Graphite.
 ## Usage
 ### Listing Available Tests
 ```
-hunter list [--user <fallout user>]
+hunter list_tests [--user <fallout user>]
 ``` 
 
 If no user is provided, then user configured in `conf.yaml` is assumed.
+
+### Listing Available Metrics for Tests
+A Graphite metric path is of the form `<Graphite export prefix>.<suffix>.<metric>`, corresponding to
+a directory structure where the Graphite server is hosted. 
+- The Graphite export prefix is what is specified within a Fallout test definition yaml for `export.prefix`
+- The metric is the very last string in the metric path
+- The suffix is everything in the path between the Graphite export prefix and final metric string
+
+To list all available Graphite metric paths for a user's Fallout test:
+```
+hunter list_metrics [--user <fallout user>] <fallout test name>
+```
+To list all possible suffixes for a user's Fallout test:
+```
+hunter list_suffixes [--user <fallout user>] <fallout test name>
+```
+Again, if no user is explicitly provided, the user that is configured in `conf.yaml` is assumed.
+
 
 ### Finding Change Points
 ```
@@ -83,6 +101,36 @@ time                         metric1    metric2
 2021-01-09 02:00:00 +0000     149466       9.13
 2021-01-10 02:00:00 +0000     148209       9.03
 ```
+
+### Analyzing Multiple Tests at Once
+```
+hunter bulk_analyze <test_group.yaml>  
+```
+The provided static test group yaml file should have the following format:
+```
+tests:
+  - name: dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3.realtime
+    suffixes:
+      - server_node0
+      - client_node0
+      - server_node0.if_packets
+      - client_node0.if_packets
+  - name: dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3
+  - name: dse68.search-geonames.write.5-node-15k-rf3
+    suffixes:
+      - server_node0
+      - client_node0
+      - server_node0.if_packets
+      - client_node0.if_packets
+```
+Note that in the case that a specified test does not have any accompanying suffixes provided
+(e.g. `dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3` above), Hunter
+will analyze _all_ metrics for that particular test. 
+
+Just as well, any suffixes specified within `conf.yaml` are ignored with this command, 
+in favor of those specified on the per-test basis within the test group yaml.
+
+
 
 ## Limitations
 Not all Fallout tests can be analyzed. Hunter works only with tests
