@@ -1,0 +1,13 @@
+tests:
+  - name: dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3.realtime
+    suffixes:
+      - server_node0
+      - client_node0
+      - server_node0.if_packets
+      - client_node0.if_packets
+  - name: dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3
+  - name: dse68.search-geonames.write.5-node-15k-rf3
+    suffixes:
+      - server_node0
+      - client_node0
+      - server_node0.if_packets
