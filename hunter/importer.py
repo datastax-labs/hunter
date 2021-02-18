@@ -3,15 +3,15 @@ import enum
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from logging import warning
 from pathlib import Path
-from typing import List, Optional, Dict, Type
+from typing import List, Optional, Dict
 
 from hunter.analysis import PerformanceLog
+from hunter.data_selector import DataSelector
 from hunter.fallout import Fallout
-from hunter.graphite import DataPoint, Graphite, DataSelector
+from hunter.graphite import DataPoint, Graphite
 from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
-    sliding_window, is_float, is_datetime
+    sliding_window, is_float, is_datetime, remove_prefix
 
 
 @dataclass
@@ -41,7 +41,19 @@ def round(x: int, divisor: int) -> int:
     """Round x to the multiplicity of divisor not greater than x"""
     return int(x / divisor) * divisor
 
-class FalloutImporter:
+
+class Importer:
+    """
+    The Importer interface is responsible for importing performance metric data + metadata from some specified data
+    source, and creating an appropriate PerformanceLog object from this imported data.
+    """
+
+    def fetch(self, test_name: Optional[str], user: Optional[str], file: Optional[Path], selector: DataSelector) \
+            -> PerformanceLog:
+        raise NotImplementedError
+
+
+class FalloutImporter(Importer):
     fallout: Fallout
     graphite: Graphite
 
@@ -106,6 +118,16 @@ class FalloutImporter:
             tags = {tag: tags[tag] for tag in selector.attributes}
         return PerformanceLog(test_name, time, values, tags)
 
+    def fetch_metric_paths(self, test_name: str, user: Optional[str]):
+        test = self.fallout.get_test(test_name, user)
+        prefix = test.graphite_prefix()
+        return self.graphite.fetch_metric_paths(prefix)
+
+    def fetch_suffixes(self, test_name: str, user: Optional[str]):
+        metric_paths = self.fetch_metric_paths(test_name, user)
+        prefix = self.fallout.get_test(test_name, user).graphite_prefix()
+        return sorted(list(set([remove_prefix(path, f'{prefix}.').rpartition('.')[0] for path in metric_paths])))
+
 
 @dataclass
 class CsvOptions:
@@ -125,7 +147,7 @@ class CsvColumnType(enum.Enum):
     Str = 3
 
 
-class CsvImporter:
+class CsvImporter(Importer):
 
     __options: CsvOptions
 
@@ -284,4 +306,3 @@ class CsvImporter:
             return parse_datetime(time)
         except DateFormatError as err:
             raise DataImportError(err.message)
-
