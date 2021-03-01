@@ -119,8 +119,7 @@ class PanelMetric:
             new_metric_token = f'{metric_token[:wildcard_index]}' \
                                f'[^{self.delimiter}]+' \
                                f'{metric_token[wildcard_index + 1:]}'
-            new_metric_token = self.__replace_wildcards(new_metric_token)
-            return new_metric_token
+            return self.__replace_wildcards(new_metric_token)
         else:
             return metric_token
 
@@ -147,8 +146,7 @@ class PanelMetric:
                 new_metric_token += f"{option}|"
             new_metric_token = new_metric_token.strip('|')
             new_metric_token += f"){metric_token[or_end_index + 1:]}"
-            new_metric_token = self.__replace_or_options(new_metric_token)
-            return new_metric_token
+            return self.__replace_or_options(new_metric_token)
         else:
             return metric_token
 
