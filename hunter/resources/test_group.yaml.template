@@ -1,5 +1,6 @@
 tests:
   - name: dse68.search-geonames.mixed-term-queries-and-writes.5-node-rf3.realtime
+    user: jenkins-dse@datastax.com
     suffixes:
       - server_node0
       - client_node0
@@ -11,3 +12,4 @@ tests:
       - server_node0
       - client_node0
       - server_node0.if_packets
+  - name: tests/resources/sample.csv
