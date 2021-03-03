@@ -41,7 +41,7 @@ to Fallout and Graphite.
 ## Usage
 ### Listing Available Tests
 ```
-hunter list_tests [--user <fallout user>]
+hunter list-tests [--user <fallout user>]
 ``` 
 
 If no user is provided, then user configured in `conf.yaml` is assumed.
@@ -55,11 +55,11 @@ a directory structure where the Graphite server is hosted.
 
 To list all available Graphite metric paths for a user's Fallout test:
 ```
-hunter list_metrics [--user <fallout user>] <fallout test name>
+hunter list-metrics [--user <fallout user>] <fallout test name>
 ```
 To list all possible suffixes for a user's Fallout test:
 ```
-hunter list_suffixes [--user <fallout user>] <fallout test name>
+hunter list-suffixes [--user <fallout user>] <fallout test name>
 ```
 Again, if no user is explicitly provided, the user that is configured in `conf.yaml` is assumed.
 
