@@ -74,7 +74,7 @@ class FalloutImporter(Importer):
         the same time point as values["bar"][3]. The time points are extracted
         to a separate column.
         """
-        user = test_conf.user
+        user = test_conf.user if test_conf.user is not None else self.fallout.get_user()
         test_name = test_conf.name
         test = self.fallout.get_test(test_name, user)
 
