@@ -174,7 +174,7 @@ class Graphite:
                 f"with metric timestamp: {timestamp}. Returning the first one.")
         return next(iter(events), None)
 
-    def fetch_data(self, prefix: str, selector: DataSelector) \
+    def fetch_data(self, prefix: str, suffixes: List[str], selector: DataSelector) \
             -> List[TimeSeries]:
         """
         Connects to Graphite server and downloads interesting series with the
@@ -189,7 +189,7 @@ class Graphite:
                 metrics = "*"
             from_time = to_graphite_time(selector.from_time, "-365d")
             until_time = to_graphite_time(selector.until_time, "now")
-            for suffix in selector.suffixes:
+            for suffix in suffixes:
                 url = f"{self.__url}render" \
                       f"?target={prefix}.{suffix}.{metrics}" \
                       f"&format=json" \
