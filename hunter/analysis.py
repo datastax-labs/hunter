@@ -5,13 +5,13 @@ from statistics import mean
 from typing import List, Dict, Optional
 
 from signal_processing_algorithms.e_divisive import EDivisive
-from signal_processing_algorithms.e_divisive.calculators import cext_calculator
-from signal_processing_algorithms.e_divisive.change_points import \
-    EDivisiveChangePoint
+from signal_processing_algorithms.e_divisive.calculators import numpy_calculator, cext_calculator
 from signal_processing_algorithms.e_divisive.significance_test import \
     QHatPermutationsSignificanceTester
 
 from hunter.util import sliding_window
+
+import numpy as np
 
 
 def fill_missing(data: List[float]):
@@ -32,12 +32,49 @@ def fill_missing(data: List[float]):
         prev = data[i]
 
 
+def compute_change_points(series: np.array, window_len: int = 30, pvalue: float = 0.05) \
+        -> List[int]:
+    """
+    Returns the indexes of change-points in a series.
+
+    Internally it uses the EDivisive algorithm from mongodb-signal-processing
+    that recursively splits the series in a way to maximize some measure of
+    dissimilarity (denoted qhat) between the split parts.
+    Splitting happens as long as the dissimilarity is statistically significant.
+
+    Unfortunately this algorithms has a few downsides:
+    - the complexity is O(n^2), where n is the length of the series
+    - if there are too many change points and too much data, the change points in the middle
+      of the series may be missed
+
+    This function tries to address these issues by invoking EDivisive on smaller
+    chunks (windows) of the input data instead of the full series and then merging the results.
+    Each window should be large enough to contain enough points to detect a change-point.
+    Consecutive windows overlap so that we won't miss changes happening between them.
+    """
+    assert "Window length must be at least 2", window_len >= 2
+    start = 0
+    step = int(window_len / 2)
+    indexes = []
+    while start < len(series):
+        end = min(start + window_len, len(series))
+        calculator = cext_calculator
+        tester = QHatPermutationsSignificanceTester(calculator, pvalue, permutations=100)
+        algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
+        pts = algo.get_change_points(series[start:end])
+        new_indexes = [p.index + start for p in pts]
+        new_indexes.sort()
+        last_new_change_point_index = next(iter(new_indexes[-1:]), 0)
+        start = max(last_new_change_point_index, start + step)
+        indexes += new_indexes
+
+    return indexes
+
 @dataclass
 class Change:
     metric: str
     index: int
     time: int
-    probability: float
     old_mean: float
     new_mean: float
 
@@ -94,42 +131,24 @@ class PerformanceLog:
             return []
 
         logging.info("Computing change points...")
-        calculator = cext_calculator
-        tester = QHatPermutationsSignificanceTester(
-            calculator, pvalue=0.05, permutations=100
-        )
         changes: List[Change] = []
         for metric, values in self.data.items():
-            # We need to initialize a fresh algo instance for each metric
-            # because calling get_change_points
-            # on the same instance modifies the internal state and
-            # yields weird results than when called
-            # separately. But we want to find change points separately for
-            # each metric here and take a simple sum of them.
-            algo = EDivisive(seed=None,
-                             calculator=calculator,
-                             significance_tester=tester)
-
             values = values.copy()
             fill_missing(values)
-            init = EDivisiveChangePoint(0)
-            end = EDivisiveChangePoint(len(values))
-            change_points = algo.get_change_points(values)
-            change_points.sort(key=lambda c: c.index)
-
-            for window in sliding_window([init, *change_points, end], 3):
+            change_points = compute_change_points(values)
+            change_points.sort()
+            for window in sliding_window([0, *change_points, len(values)], 3):
                 prev_cp = window[0]
                 curr_cp = window[1]
                 next_cp = window[2]
                 old_mean = mean(filter(None.__ne__,
-                                       values[prev_cp.index:curr_cp.index]))
+                                       values[prev_cp:curr_cp]))
                 new_mean = mean(filter(None.__ne__,
-                                       values[curr_cp.index:next_cp.index]))
+                                       values[curr_cp:next_cp]))
                 changes.append(
                     Change(
-                        index=curr_cp.index,
-                        time=self.time[curr_cp.index],
-                        probability=curr_cp.probability,
+                        index=curr_cp,
+                        time=self.time[curr_cp],
                         metric=metric,
                         old_mean=old_mean,
                         new_mean=new_mean

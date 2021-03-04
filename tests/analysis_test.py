@@ -1,7 +1,8 @@
 from random import random
 import time
 
-from hunter.analysis import PerformanceLog, fill_missing
+from hunter.analysis import PerformanceLog, fill_missing, compute_change_points
+import numpy as np
 
 
 def test_change_point_detection():
@@ -41,3 +42,12 @@ def test_fill_missing():
     assert list1 == [1.0, 1.0, 1.0, 1.2, 0.5]
     assert list2 == [1.0, 1.2, 1.2, 1.2, 4.3]
     assert list3 == [1.0, 1.2, 0.5, 0.5, 0.5]
+
+
+def test_single_series():
+    series = [1.02, 0.95, 0.99, 1.00, 1.12, 1.00, 1.01, 0.98, 1.01, 0.96,
+              0.50, 0.51, 0.48, 0.48, 0.55, 0.50, 0.49, 0.51, 0.50, 0.49]
+    indexes = compute_change_points(series, window_len=10, pvalue=0.05)
+    assert(indexes == [10])
+
+
