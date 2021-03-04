@@ -1,17 +1,18 @@
 import csv
-import enum
 import math
+
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict
 
-from hunter.analysis import PerformanceLog
+from hunter.analysis import PerformanceTest
 from hunter.config import Config
+from hunter.csv import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.fallout import Fallout
 from hunter.graphite import DataPoint, Graphite
-from hunter.test_config import TestConfig, TestType
+from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
 from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
     sliding_window, is_float, is_datetime, remove_prefix
 
@@ -50,7 +51,7 @@ class Importer:
     source, and creating an appropriate PerformanceLog object from this imported data.
     """
 
-    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceLog:
+    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
         raise NotImplementedError
 
     def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
@@ -65,7 +66,7 @@ class FalloutImporter(Importer):
         self.fallout = fallout
         self.graphite = graphite
 
-    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceLog:
+    def fetch(self, test_conf: FalloutTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
         """
         Loads test data from fallout and graphite.
         Converts raw timeseries data into a columnar format,
@@ -77,8 +78,10 @@ class FalloutImporter(Importer):
         user = test_conf.user if test_conf.user is not None else self.fallout.get_user()
         test_name = test_conf.name
         test = self.fallout.get_test(test_name, user)
+        # if no suffixes were specified, use all available ones
+        suffixes = test_conf.suffixes if test_conf.suffixes is not None else self.fetch_all_suffixes(test_conf)
 
-        graphite_result = self.graphite.fetch_data(test.graphite_prefix(), test_conf.suffixes, selector)
+        graphite_result = self.graphite.fetch_data(test.graphite_prefix(), suffixes, selector)
         if not graphite_result:
             raise DataImportError(
                 f"No timeseries found in Graphite for test {test_name}. "
@@ -118,35 +121,17 @@ class FalloutImporter(Importer):
         tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
         if selector.attributes is not None:
             tags = {tag: tags[tag] for tag in selector.attributes}
-        return PerformanceLog(test_name, time, values, tags)
+        return PerformanceTest(test_name, time, values, tags)
 
-    def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
+    def fetch_all_metric_names(self, test_conf: FalloutTestConfig) -> List[str]:
         test = self.fallout.get_test(test_conf.name, test_conf.user)
         prefix = test.graphite_prefix()
         return self.graphite.fetch_metric_paths(prefix)
 
-    def fetch_all_suffixes(self, test_conf: TestConfig) -> List[str]:
+    def fetch_all_suffixes(self, test_conf: FalloutTestConfig) -> List[str]:
         metric_paths = self.fetch_all_metric_names(test_conf)
         prefix = self.fallout.get_test(test_conf.name, test_conf.user).graphite_prefix()
         return sorted(list(set([remove_prefix(path, f'{prefix}.').rpartition('.')[0] for path in metric_paths])))
-
-
-@dataclass
-class CsvOptions:
-    delimiter: str
-    quote_char: str
-    time_column: Optional[str]
-
-    def __init__(self):
-        self.delimiter = ','
-        self.quote_char = '"'
-        self.time_column = None
-
-
-class CsvColumnType(enum.Enum):
-    Numeric = 1
-    DateTime = 2
-    Str = 3
 
 
 class CsvImporter(Importer):
@@ -229,7 +214,7 @@ class CsvImporter(Importer):
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in metrics]
 
-    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceLog:
+    def fetch(self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
         file = Path(test_conf.name)
         from_time = selector.from_time
         until_time = selector.until_time
@@ -287,9 +272,9 @@ class CsvImporter(Importer):
                 for i in attr_indexes:
                     attributes[headers[i]].append(row[i])
 
-            return PerformanceLog(str(file.name), time, data, attributes)
+            return PerformanceTest(str(file.name), time, data, attributes)
 
-    def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
+    def fetch_all_metric_names(self, test_conf: CsvTestConfig) -> List[str]:
         metrics = []
         file = Path(test_conf.name)
         with open(file, newline='') as csv_file:
@@ -324,8 +309,8 @@ class CsvImporter(Importer):
             raise DataImportError(err.message)
 
 
-def get_importer(test_conf: TestConfig, config: Config, csv_options: CsvOptions) -> Importer:
-    if test_conf.type == TestType.Csv:
-        return CsvImporter(options=csv_options)
-    if test_conf.type == TestType.Fallout:
-        return FalloutImporter(fallout=Fallout(config.fallout), graphite=Graphite(config.graphite))
+def get_importer(test_conf: TestConfig, conf: Config) -> Importer:
+    if isinstance(test_conf, CsvTestConfig):
+        return CsvImporter(options=test_conf.csv_options)
+    if isinstance(test_conf, FalloutTestConfig):
+        return FalloutImporter(fallout=Fallout(conf.fallout), graphite=Graphite(conf.graphite))

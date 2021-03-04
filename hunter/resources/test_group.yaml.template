@@ -13,3 +13,6 @@ tests:
       - client_node0
       - server_node0.if_packets
   - name: tests/resources/sample.csv
+    csv_options:
+      delimiter: ","
+      quote_char: "'"
