@@ -76,15 +76,79 @@ class PanelMetric:
         tokens = self.parametrized_metric.split(self.delimiter)
         for token in tokens:
             # replacing any template variable or wildcard in the graphite query, and the trailing period we split along
-            if token.startswith("$") or token == "*":
-                regex_pattern += f"[^{self.delimiter}]+"
-                regex_pattern += delimiter_pattern
-            else:
-                regex_pattern += f"{token}"
-                regex_pattern += delimiter_pattern
+            token = self.__replace_wildcards(token)
+            token = self.__replace_template_variables(token)
+            token = self.__replace_or_options(token)
+            regex_pattern += f"{token}"
+            regex_pattern += delimiter_pattern
         # strip trailing delimiter_pattern, and specify end of string
         regex_pattern = regex_pattern.strip(delimiter_pattern) + end_of_string
         self.regex_pattern = regex_pattern
+
+    def __replace_template_variables(self, metric_token: str) -> str:
+        """
+        Grafana metric queries can use template variables (denoted by $variable_name) as a token in the path, e.g.
+
+            performance_regressions.$frequency.$component.$test.$workload.$environment.*.disk_ops.read
+
+        This method will replace a templated variable with the regex pattern [^.]+ in a Grafana metric query token.
+        """
+        template_variable_index = metric_token.find('$')
+        if template_variable_index > -1:
+            new_metric_token = f'{metric_token[:template_variable_index]}[^{self.delimiter}]+'
+            return new_metric_token
+        else:
+            new_metric_token = metric_token
+        return new_metric_token
+
+    def __replace_wildcards(self, metric_token: str) -> str:
+        """
+        Grafana metric queries can use wildcards either as an entire token in the path, e.g.
+
+            performance_regressions.$frequency.$component.$test.$workload.$environment.*.disk_ops.read
+
+        or as part of a token, e.g.
+
+            performance_regressions.$frequency.$component.$test.$workload.$environment.server_*.disk_ops.read
+
+        This helper method will recursively convert all wildcards with the regex pattern [^.]+ in a Grafana
+        metric query token.
+        """
+        wildcard_index = metric_token.find('*')
+        if wildcard_index > -1:
+            new_metric_token = f'{metric_token[:wildcard_index]}' \
+                               f'[^{self.delimiter}]+' \
+                               f'{metric_token[wildcard_index + 1:]}'
+            return self.__replace_wildcards(new_metric_token)
+        else:
+            return metric_token
+
+    def __replace_or_options(self, metric_token: str) -> str:
+        """
+        Grafana parametrized metric queries can contain a hard-coded set of options somewhere in the
+        path. For instance:
+
+            performance_regressions.$frequency.$component.$test.$workload.$environment.*.
+            GC-{ParNew,G1_Young_Generation}.gauge-CollectionCount
+
+        contains {ParNew,G1_Young_Generation} hared-coded options.
+
+        This helper method searches for this pattern in {option_1, ..., option_N} in a Grafana metric query token,
+        and converts appropriately to regex pattern (option_1|...|option_N).
+        """
+        or_start_index = metric_token.find("{")
+        if or_start_index > -1:
+            or_end_index = metric_token.find("}")
+            options_string = metric_token[or_start_index + 1:or_end_index]
+            options = [option.strip() for option in options_string.split(",")]
+            new_metric_token = f"{metric_token[:or_start_index]}("
+            for option in options:
+                new_metric_token += f"{option}|"
+            new_metric_token = new_metric_token.strip('|')
+            new_metric_token += f"){metric_token[or_end_index + 1:]}"
+            return self.__replace_or_options(new_metric_token)
+        else:
+            return metric_token
 
     def determine_tags(self, hardcoded_metric: str) -> List[str]:
         """
@@ -152,10 +216,16 @@ class Dashboard:
                 panels_info += row.get("panels")
         else:
             panels_info = dashboard_info.get("panels")
-        # filter out panels that do not contain the `targets` key (i.e. key that corresponds to metrics displayed)
-        panels_info = filter(lambda p: p.get('targets') is not None, panels_info)
+        # get any panels that correspond to a graph
+        graph_panels_info = list(filter(lambda p: p['type'] == 'graph', panels_info))
+        rows = filter(lambda p: p['type'] == 'row', panels_info)
+        for row in rows:
+            row_panels_info = row["panels"]
+            for panel_info in row_panels_info:
+                if panel_info.get("type") == "graph":
+                    graph_panels_info.append(panel_info)
         self.__panels = {}
-        for panel_info in panels_info:
+        for panel_info in graph_panels_info:
             panel_id = panel_info["id"]
             self.__panels[panel_id] = Panel(panel_info)
 
