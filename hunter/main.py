@@ -3,22 +3,23 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import pystache
 import pytz
 
 from hunter import config
+from hunter.analysis import PerformanceTest
 from hunter.config import ConfigError, Config
+from hunter.csv import CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.event_processor import EventProcessor
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
-from hunter.importer import get_importer, FalloutImporter, DataImportError, CsvOptions
-from hunter.performance_test import PerformanceTest, PerformanceTestGroup
+from hunter.importer import get_importer, FalloutImporter, DataImportError
 from hunter.report import Report
-from hunter.test_config import TestConfig
+from hunter.test_config import create_test_config, FalloutTestConfig, TestConfigError, TestGroup
 from hunter.util import parse_datetime, DateFormatError
 
 
@@ -52,8 +53,9 @@ def list_tests(conf: Config, user: Optional[str]):
 
 
 def list_metrics(conf: Config, csv_options: CsvOptions, test: str, user: Optional[str]):
-    test_conf = TestConfig(name=test, user=user)
-    importer = get_importer(test_conf, conf, csv_options)
+    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_conf = create_test_config(test_info, csv_options)
+    importer = get_importer(test_conf, conf)
     for metric_name in importer.fetch_all_metric_names(test_conf):
         print(metric_name)
     exit(0)
@@ -64,7 +66,7 @@ def list_suffixes(conf: Config, test: str, user: Optional[str]):
     NOTE. Since suffixes only make sense in the context of Fallout-related tests, the Importer that is used
     here will always be a FalloutImporter instance
     """
-    test_conf = TestConfig(name=test, user=user)
+    test_conf = FalloutTestConfig(name=test, user=user, suffixes=conf.graphite.suffixes)
     fallout = Fallout(conf.fallout)
     graphite = Graphite(conf.graphite)
     importer = FalloutImporter(fallout, graphite)
@@ -81,17 +83,18 @@ def analyze_runs(
         selector: DataSelector,
         update_grafana_flag: bool):
 
-    test_conf = TestConfig(name=test, user=user, suffixes=conf.graphite.suffixes,)
-    perf_test = PerformanceTest(test_conf, conf, csv_options)
-    perf_test.fetch(data_selector=selector)
-    results = perf_test.find_change_points()
+    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_conf = create_test_config(test_info, csv_options)
+    importer = get_importer(test_conf, conf)
+    perf_test = importer.fetch(test_conf, selector)
+    perf_test.find_change_points()
 
     # update Grafana first, so that associated logging messages are not the last to be printed to stdout
-    if update_grafana_flag and type(perf_test.importer) == FalloutImporter:
+    if update_grafana_flag and isinstance(importer, FalloutImporter):
         grafana = Grafana(conf.grafana)
-        update_grafana(perf_test, perf_test.importer.fallout, perf_test.importer.graphite, grafana)
+        update_grafana(perf_test, importer.fallout, importer.graphite, grafana)
 
-    report = Report(results)
+    report = Report(perf_test)
     print(report.format_log_annotated())
     exit(0)
 
@@ -104,35 +107,46 @@ def bulk_analyze_runs(
         selector: DataSelector,
         update_grafana_flag: bool):
 
-    perf_test_group = PerformanceTestGroup(Path(test_group_file), conf, user, csv_options)
-    perf_test_group.fetch(data_selector=selector)
-    results_dict = perf_test_group.find_change_points()
+    test_group = TestGroup(Path(test_group_file), user, csv_options)
+    perf_tests = {}
+    # keep track of importers used for Fallout tests, in case we need to update Grafana
+    fallout_importers: Dict[str, FalloutImporter] = {}
+    for test_name, test_conf in test_group.test_configs.items():
+        importer = get_importer(test_conf=test_conf, conf=conf)
+        perf_tests[test_name] = importer.fetch(test_conf, selector)
+        perf_tests[test_name].find_change_points()
+        if isinstance(importer, FalloutImporter):
+            fallout_importers[test_name] = importer
 
     if update_grafana_flag:
         grafana = Grafana(conf.grafana)
-        for test_name, perf_test in perf_test_group.performance_tests.items():
-            if type(perf_test.importer) == FalloutImporter:
-                update_grafana(perf_test, perf_test.importer.fallout, perf_test.importer.graphite, grafana)
+        for test_name, importer in fallout_importers.items():
+            update_grafana(perf_tests[test_name], importer.fallout, importer.graphite, grafana)
 
     #TODO: Improve this output
-    for test_name, results in results_dict.items():
+    for test_name, results in perf_tests.items():
         report = Report(results)
         print(f"\n{test_name}")
         print(report.format_log_annotated())
     exit(0)
 
 
-def update_grafana(perf_test: PerformanceTest, fallout: Fallout, graphite: Graphite, grafana: Grafana):
-    logging.info("Determining new Grafana annotations...")
+def update_grafana(
+        perf_test: PerformanceTest,
+        fallout: Fallout,
+        graphite: Graphite,
+        grafana: Grafana):
+
+    logging.info(f"Determining new Grafana annotations for test {perf_test.test_name}...")
     annotations = []
     event_processor = EventProcessor(fallout, graphite)
-    for change_point in perf_test.performance_log.change_points:
+    for change_point in perf_test.change_points:
         for change in change_point.changes:
             relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
             if len(relevant_dashboard_panels) > 0:
                 # determine Fallout and GitHub hyperlinks for displaying in annotation
                 annotation_text = event_processor.get_html_from_test_run_event(
-                    test_name=perf_test.performance_log.test_name,
+                    test_name=perf_test.test_name,
                     timestamp=datetime.fromtimestamp(change.time, tz=pytz.UTC)
                 )
                 for dashboard_panel in relevant_dashboard_panels:
@@ -307,6 +321,9 @@ def main():
             parser.print_usage()
 
     except ConfigError as err:
+        logging.error(err.message)
+        exit(1)
+    except TestConfigError as err:
         logging.error(err.message)
         exit(1)
     except FalloutError as err:
