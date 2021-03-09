@@ -5,10 +5,9 @@ from statistics import mean
 from typing import List, Dict, Optional
 
 from signal_processing_algorithms.e_divisive import EDivisive
-from signal_processing_algorithms.e_divisive.calculators import numpy_calculator, cext_calculator
-from signal_processing_algorithms.e_divisive.significance_test import \
-    QHatPermutationsSignificanceTester
+from signal_processing_algorithms.e_divisive.calculators import cext_calculator
 
+from hunter.significance_test import TTestSignificanceTester
 from hunter.util import sliding_window
 
 import numpy as np
@@ -32,7 +31,9 @@ def fill_missing(data: List[float]):
         prev = data[i]
 
 
-def compute_change_points(series: np.array, window_len: int = 30, pvalue: float = 0.05) \
+def compute_change_points(series: np.array,
+                          window_len: int = 30,
+                          pvalue: float = 0.01) \
         -> List[int]:
     """
     Returns the indexes of change-points in a series.
@@ -59,7 +60,7 @@ def compute_change_points(series: np.array, window_len: int = 30, pvalue: float 
     while start < len(series):
         end = min(start + window_len, len(series))
         calculator = cext_calculator
-        tester = QHatPermutationsSignificanceTester(calculator, pvalue, permutations=100)
+        tester = TTestSignificanceTester(pvalue)
         algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
         pts = algo.get_change_points(series[start:end])
         new_indexes = [p.index + start for p in pts]
@@ -69,6 +70,7 @@ def compute_change_points(series: np.array, window_len: int = 30, pvalue: float 
         indexes += new_indexes
 
     return indexes
+
 
 @dataclass
 class Change:
