@@ -19,7 +19,7 @@ from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import get_importer, FalloutImporter, DataImportError
 from hunter.report import Report
-from hunter.test_config import create_test_config, FalloutTestConfig, TestConfigError, TestGroup
+from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError
 
 
@@ -61,20 +61,6 @@ def list_metrics(conf: Config, csv_options: CsvOptions, test: str, user: Optiona
     exit(0)
 
 
-def list_suffixes(conf: Config, test: str, user: Optional[str]):
-    """
-    NOTE. Since suffixes only make sense in the context of Fallout-related tests, the Importer that is used
-    here will always be a FalloutImporter instance
-    """
-    test_conf = FalloutTestConfig(name=test, user=user, suffixes=conf.graphite.suffixes)
-    fallout = Fallout(conf.fallout)
-    graphite = Graphite(conf.graphite)
-    importer = FalloutImporter(fallout, graphite)
-    for suffix in importer.fetch_all_suffixes(test_conf):
-        print(suffix)
-    exit(0)
-
-
 def analyze_runs(
         conf: Config,
         csv_options: CsvOptions,
@@ -101,13 +87,12 @@ def analyze_runs(
 
 def bulk_analyze_runs(
         conf: Config,
-        csv_options: CsvOptions,
         test_group_file: str,
         user: Optional[str],
         selector: DataSelector,
         update_grafana_flag: bool):
 
-    test_group = TestGroup(Path(test_group_file), user, csv_options)
+    test_group = TestGroup(Path(test_group_file), user)
     perf_tests = {}
     # keep track of importers used for Fallout tests, in case we need to update Grafana
     fallout_importers: Dict[str, FalloutImporter] = {}
@@ -258,14 +243,6 @@ def main():
     )
     setup_csv_options_parser(list_metrics_parser)
 
-    list_suffixes_parser = subparsers.add_parser(
-        "list-suffixes",
-        help="Lists all available metric suffixes for a Fallout test. NOT applicable for CSV tests.")
-    list_suffixes_parser.add_argument(
-        "test",
-        help="name of the test in Fallout"
-    )
-
     analyze_parser = subparsers.add_parser(
         "analyze",
         help="analyze performance test results",
@@ -290,7 +267,6 @@ def main():
                                 help = 'Update Grafana dashboards with appropriate annotations of change points',
                                 action = "store_true")
     setup_data_selector_parser(bulk_analyze_parser)
-    setup_csv_options_parser(bulk_analyze_parser)
 
     try:
         args = parser.parse_args()
@@ -305,18 +281,15 @@ def main():
         if args.command == "list-metrics":
             csv_options = csv_options_from_args(args)
             list_metrics(conf, csv_options, args.test, user)
-        if args.command == "list-suffixes":
-            list_suffixes(conf, args.test, user)
         if args.command == "analyze":
             csv_options = csv_options_from_args(args)
             data_selector = data_selector_from_args(args)
             update_grafana_flag = args.update_grafana
             analyze_runs(conf, csv_options, args.test, user, data_selector, update_grafana_flag)
         if args.command == "bulk-analyze":
-            csv_options = csv_options_from_args(args)
             data_selector = data_selector_from_args(args)
             update_grafana_flag = args.update_grafana
-            bulk_analyze_runs(conf, csv_options, args.test_group, user, data_selector, update_grafana_flag)
+            bulk_analyze_runs(conf, args.test_group, user, data_selector, update_grafana_flag)
         if args.command is None:
             parser.print_usage()
 
@@ -324,6 +297,9 @@ def main():
         logging.error(err.message)
         exit(1)
     except TestConfigError as err:
+        logging.error(err.message)
+        exit(1)
+    except TestGroupError as err:
         logging.error(err.message)
         exit(1)
     except FalloutError as err:

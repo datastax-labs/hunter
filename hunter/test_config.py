@@ -36,7 +36,10 @@ class FalloutTestConfig(TestConfig):
         self.suffixes = suffixes
 
 
-def create_test_config(test_info: Dict, csv_options: CsvOptions, user: Optional[str] = None) -> TestConfig:
+def create_test_config(
+        test_info: Dict,
+        csv_options: Optional[CsvOptions] = CsvOptions(),
+        user: Optional[str] = None) -> TestConfig:
     try:
         test_name = test_info["name"]
         if test_name.endswith('csv'):
@@ -73,6 +76,11 @@ def create_fallout_test_config(test_info: Dict, user: Optional[str] = None) -> F
 
 
 @dataclass
+class TestGroupError(Exception):
+    message: str
+
+
+@dataclass
 class TestGroup:
     """
     Effectively serves as a container for a bunch of TestConfig objects. Note that the contained TestConfig
@@ -81,14 +89,14 @@ class TestGroup:
     test_group_file: Path
     test_configs: Dict[str, TestConfig]
 
-    def __init__(self, test_group_file: Path, user: Optional[str], csv_options: CsvOptions):
+    def __init__(self, test_group_file: Path, user: Optional[str]):
         self.test_group_file = test_group_file
         yaml_content = self._load_yaml()
         self.test_configs = {}
         for test_info in yaml_content:
             try:
                 test_name = test_info['name']
-                self.test_configs[test_name] = create_test_config(test_info, csv_options, user)
+                self.test_configs[test_name] = create_test_config(test_info=test_info, user=user)
             except KeyError as e:
                 raise TestConfigError(f"Test configuration key not found: {e.args[0]}")
 
@@ -98,6 +106,6 @@ class TestGroup:
             yaml = YAML(typ='safe')
             return yaml.load(content)["tests"]
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Test group file not found: {e.filename}")
+            raise TestGroupError(f"Test group file not found: {e.filename}")
         except KeyError as e:
-            raise KeyError(f"Test group file key not found: {e.args[0]}")
+            raise TestGroupError(f"Test group file key not found: {e.args[0]}")
