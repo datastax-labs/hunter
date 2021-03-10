@@ -47,21 +47,17 @@ hunter list-tests [--user <fallout user>]
 If no user is provided, then user configured in `conf.yaml` is assumed.
 
 ### Listing Available Metrics for Tests
-A Graphite metric path is of the form `<Graphite export prefix>.<suffix>.<metric>`, corresponding to
-a directory structure where the Graphite server is hosted. 
-- The Graphite export prefix is what is specified within a Fallout test definition yaml for `export.prefix`
-- The metric is the very last string in the metric path
-- The suffix is everything in the path between the Graphite export prefix and final metric string
 
 To list all available Graphite metric paths for a user's Fallout test:
 ```
 hunter list-metrics [--user <fallout user>] <fallout test name>
 ```
-To list all possible suffixes for a user's Fallout test:
-```
-hunter list-suffixes [--user <fallout user>] <fallout test name>
-```
 Again, if no user is explicitly provided, the user that is configured in `conf.yaml` is assumed.
+
+To list all available metrics within a CSV file:
+```
+hunter list-metrics [--csv-delimiter CHAR] [--csv-quote CHAR] [--csv-time-column COLUMN] <file.csv>
+```
 
 
 ### Finding Change Points
