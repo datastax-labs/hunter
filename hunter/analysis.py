@@ -7,7 +7,7 @@ from typing import List, Dict, Optional
 from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.calculators import cext_calculator
 
-from hunter.significance_test import TTestSignificanceTester
+from hunter.significance_testers import TTestSignificanceTester
 from hunter.util import sliding_window
 
 import numpy as np
