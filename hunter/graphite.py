@@ -1,12 +1,13 @@
 import ast
 import json
 import urllib.request
+
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import info, warning
 from typing import Dict, List, Optional
 
-import pytz
+from hunter.data_selector import DataSelector
 
 
 @dataclass
@@ -45,20 +46,6 @@ def to_graphite_time(time: datetime, default: str) -> str:
 @dataclass
 class GraphiteError(IOError):
     message: str
-
-
-@dataclass
-class DataSelector:
-    metrics: Optional[List[str]]
-    attributes: Optional[List[str]]
-    from_time: datetime
-    until_time: datetime
-
-    def __init__(self):
-        self.metrics = None
-        self.attributes = None
-        self.from_time = datetime.fromtimestamp(0, tz=pytz.UTC)
-        self.until_time = datetime.now(tz=pytz.UTC)
 
 
 @dataclass
@@ -108,11 +95,9 @@ class GraphiteEvent:
 
 class Graphite:
     __url: str
-    __suffixes: List[str]
 
     def __init__(self, conf: GraphiteConfig):
         self.__url = conf.url
-        self.__suffixes = conf.suffixes
 
     def fetch_events(self,
                      fallout_user: str,
@@ -187,10 +172,9 @@ class Graphite:
             warning(
                 f"Found multiple potential Graphite events for {fallout_user}'s test {test_name} "
                 f"with metric timestamp: {timestamp}. Returning the first one.")
+        return next(iter(events), None)
 
-        return next(events, None)
-
-    def fetch_data(self, prefix: str, selector: DataSelector) \
+    def fetch_data(self, prefix: str, suffixes: List[str], selector: DataSelector) \
             -> List[TimeSeries]:
         """
         Connects to Graphite server and downloads interesting series with the
@@ -205,7 +189,7 @@ class Graphite:
                 metrics = "*"
             from_time = to_graphite_time(selector.from_time, "-365d")
             until_time = to_graphite_time(selector.until_time, "now")
-            for suffix in self.__suffixes:
+            for suffix in suffixes:
                 url = f"{self.__url}render" \
                       f"?target={prefix}.{suffix}.{metrics}" \
                       f"&format=json" \
@@ -230,3 +214,26 @@ class Graphite:
         except IOError as err:
             raise GraphiteError(
                 f"Failed to fetch data from Graphite: {str(err)}")
+
+    def fetch_metric_paths(self, prefix: str, paths: Optional[List[str]] = None) -> List[str]:
+        """
+        Provided a valid Graphite metric prefix, this method will retrieve all corresponding metric paths
+        Reference:
+        - https://graphite-api.readthedocs.io/en/latest/api.html
+        """
+        if paths is None:
+            paths = []
+        try:
+            url = f'{self.__url}metrics/find?query={prefix}'
+            data_str = urllib.request.urlopen(url).read()
+            data_as_json = json.loads(data_str)
+            for result in data_as_json:
+                curr_path = result['id']
+                if result['leaf']:
+                    paths.append(curr_path)
+                else:
+                    paths = self.fetch_metric_paths(f'{curr_path}.*', paths)
+            return sorted(paths)
+        except IOError as err:
+            raise GraphiteError(
+                f"Failed to fetch metric path from Graphite: {str(err)}")

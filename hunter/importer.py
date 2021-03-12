@@ -1,16 +1,20 @@
 import csv
-import enum
 import math
+
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Type
+from typing import List, Optional, Dict
 
-from hunter.analysis import PerformanceLog
+from hunter.analysis import PerformanceTest
+from hunter.config import Config
+from hunter.csv import CsvColumnType, CsvOptions
+from hunter.data_selector import DataSelector
 from hunter.fallout import Fallout
-from hunter.graphite import DataPoint, Graphite, DataSelector
+from hunter.graphite import DataPoint, Graphite
+from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
 from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
-    sliding_window, is_float, is_datetime
+    sliding_window, is_float, is_datetime, remove_prefix
 
 
 @dataclass
@@ -40,7 +44,21 @@ def round(x: int, divisor: int) -> int:
     """Round x to the multiplicity of divisor not greater than x"""
     return int(x / divisor) * divisor
 
-class FalloutImporter:
+
+class Importer:
+    """
+    The Importer interface is responsible for importing performance metric data + metadata from some specified data
+    source, and creating an appropriate PerformanceLog object from this imported data.
+    """
+
+    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
+        raise NotImplementedError
+
+    def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
+        raise NotImplementedError
+
+
+class FalloutImporter(Importer):
     fallout: Fallout
     graphite: Graphite
 
@@ -48,10 +66,7 @@ class FalloutImporter:
         self.fallout = fallout
         self.graphite = graphite
 
-    def fetch(self,
-              test_name: str,
-              user: Optional[str],
-              selector: DataSelector = DataSelector()) -> PerformanceLog:
+    def fetch(self, test_conf: FalloutTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
         """
         Loads test data from fallout and graphite.
         Converts raw timeseries data into a columnar format,
@@ -60,10 +75,13 @@ class FalloutImporter:
         the same time point as values["bar"][3]. The time points are extracted
         to a separate column.
         """
-        user = user if user is not None else self.fallout.get_user()
+        user = test_conf.user if test_conf.user is not None else self.fallout.get_user()
+        test_name = test_conf.name
         test = self.fallout.get_test(test_name, user)
+        # if no suffixes were specified, use all available ones
+        suffixes = test_conf.suffixes if test_conf.suffixes is not None else self.fetch_all_suffixes(test_conf)
 
-        graphite_result = self.graphite.fetch_data(test.graphite_prefix(), selector)
+        graphite_result = self.graphite.fetch_data(test.graphite_prefix(), suffixes, selector)
         if not graphite_result:
             raise DataImportError(
                 f"No timeseries found in Graphite for test {test_name}. "
@@ -103,28 +121,20 @@ class FalloutImporter:
         tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
         if selector.attributes is not None:
             tags = {tag: tags[tag] for tag in selector.attributes}
-        return PerformanceLog(test_name, time, values, tags)
+        return PerformanceTest(test_name, time, values, tags)
+
+    def fetch_all_metric_names(self, test_conf: FalloutTestConfig) -> List[str]:
+        test = self.fallout.get_test(test_conf.name, test_conf.user)
+        prefix = test.graphite_prefix()
+        return self.graphite.fetch_metric_paths(prefix)
+
+    def fetch_all_suffixes(self, test_conf: FalloutTestConfig) -> List[str]:
+        metric_paths = self.fetch_all_metric_names(test_conf)
+        prefix = self.fallout.get_test(test_conf.name, test_conf.user).graphite_prefix()
+        return sorted(list(set([remove_prefix(path, f'{prefix}.').rpartition('.')[0] for path in metric_paths])))
 
 
-@dataclass
-class CsvOptions:
-    delimiter: str
-    quote_char: str
-    time_column: Optional[str]
-
-    def __init__(self):
-        self.delimiter = ','
-        self.quote_char = '"'
-        self.time_column = None
-
-
-class CsvColumnType(enum.Enum):
-    Numeric = 1
-    DateTime = 2
-    Str = 3
-
-
-class CsvImporter:
+class CsvImporter(Importer):
 
     __options: CsvOptions
 
@@ -204,9 +214,8 @@ class CsvImporter:
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in metrics]
 
-    def fetch(self,
-              file: Path,
-              selector: DataSelector = DataSelector()) -> PerformanceLog:
+    def fetch(self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
+        file = Path(test_conf.name)
         from_time = selector.from_time
         until_time = selector.until_time
 
@@ -263,7 +272,22 @@ class CsvImporter:
                 for i in attr_indexes:
                     attributes[headers[i]].append(row[i])
 
-            return PerformanceLog(str(file.name), time, data, attributes)
+            return PerformanceTest(str(file.name), time, data, attributes)
+
+    def fetch_all_metric_names(self, test_conf: CsvTestConfig) -> List[str]:
+        metrics = []
+        file = Path(test_conf.name)
+        with open(file, newline='') as csv_file:
+            reader = csv.reader(csv_file,
+                                delimiter=self.__options.delimiter,
+                                quotechar=self.__options.quote_char)
+
+            headers: List[str] = next(reader, None)
+            types: List[CsvColumnType] = self.column_types(file)
+            metric_indexes = self.metric_indexes(metrics=None, headers=headers, types=types)
+            for metric_index in metric_indexes:
+                metrics.append(headers[metric_index])
+        return metrics
 
     def __select_columns(self, headers, selector):
         value_indexes = \
@@ -284,3 +308,9 @@ class CsvImporter:
         except DateFormatError as err:
             raise DataImportError(err.message)
 
+
+def get_importer(test_conf: TestConfig, conf: Config) -> Importer:
+    if isinstance(test_conf, CsvTestConfig):
+        return CsvImporter(options=test_conf.csv_options)
+    if isinstance(test_conf, FalloutTestConfig):
+        return FalloutImporter(fallout=Fallout(conf.fallout), graphite=Graphite(conf.graphite))

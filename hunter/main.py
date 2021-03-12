@@ -3,20 +3,23 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import pystache
 import pytz
 
 from hunter import config
+from hunter.analysis import PerformanceTest
 from hunter.config import ConfigError, Config
+from hunter.csv import CsvOptions
+from hunter.data_selector import DataSelector
 from hunter.event_processor import EventProcessor
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
-from hunter.graphite import Graphite, GraphiteError, DataSelector
-from hunter.importer import FalloutImporter, DataImportError, CsvImporter, \
-    CsvOptions
+from hunter.graphite import Graphite, GraphiteError
+from hunter.importer import get_importer, FalloutImporter, DataImportError
 from hunter.report import Report
+from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError
 
 
@@ -29,11 +32,16 @@ def setup():
         'fallout_token': fallout_token,
         'fallout_user': fallout_user
     })
+
+    test_group_template = (Path(__file__).parent / "resources" / "test_group.yaml.template").read_text()
+    test_group_yaml = pystache.render(test_group_template)
+
     hunter_conf_dir = (Path.home() / ".hunter")
     if not hunter_conf_dir.exists():
         hunter_conf_dir.mkdir()
     os.umask(0o600) # Don't share credentials with other users
     (Path.home() / ".hunter" / "conf.yaml").write_text(conf_yaml)
+    (Path.home() / ".hunter" / "test_group.yaml").write_text(test_group_yaml)
     exit(0)
 
 
@@ -44,50 +52,86 @@ def list_tests(conf: Config, user: Optional[str]):
     exit(0)
 
 
+def list_metrics(conf: Config, csv_options: CsvOptions, test: str, user: Optional[str]):
+    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_conf = create_test_config(test_info, csv_options)
+    importer = get_importer(test_conf, conf)
+    for metric_name in importer.fetch_all_metric_names(test_conf):
+        print(metric_name)
+    exit(0)
+
+
 def analyze_runs(
         conf: Config,
         csv_options: CsvOptions,
         test: str,
         user: Optional[str],
-        selector: DataSelector):
+        selector: DataSelector,
+        update_grafana_flag: bool):
 
-    if test.lower().endswith("csv"):
-        importer = CsvImporter(csv_options)
-        results = importer.fetch(Path(test), selector=selector)
-    else:
-        fallout = Fallout(conf.fallout)
-        graphite = Graphite(conf.graphite)
-        importer = FalloutImporter(fallout, graphite)
-        results = importer.fetch(test, user, selector)
+    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_conf = create_test_config(test_info, csv_options)
+    importer = get_importer(test_conf, conf)
+    perf_test = importer.fetch(test_conf, selector)
+    perf_test.find_change_points()
 
-    results.find_change_points()
-    report = Report(results)
+    # update Grafana first, so that associated logging messages are not the last to be printed to stdout
+    if update_grafana_flag and isinstance(importer, FalloutImporter):
+        grafana = Grafana(conf.grafana)
+        update_grafana(perf_test, importer.fallout, importer.graphite, grafana)
+
+    report = Report(perf_test)
     print(report.format_log_annotated())
     exit(0)
 
 
-def update_grafana(conf: Config,
-                   test: str,
-                   user: Optional[str],
-                   selector: DataSelector):
+def bulk_analyze_runs(
+        conf: Config,
+        test_group_file: str,
+        user: Optional[str],
+        selector: DataSelector,
+        update_grafana_flag: bool):
 
-    grafana = Grafana(conf.grafana)
-    fallout = Fallout(conf.fallout)
-    graphite = Graphite(conf.graphite)
+    test_group = TestGroup(Path(test_group_file), user)
+    perf_tests = {}
+    # keep track of importers used for Fallout tests, in case we need to update Grafana
+    fallout_importers: Dict[str, FalloutImporter] = {}
+    for test_name, test_conf in test_group.test_configs.items():
+        importer = get_importer(test_conf=test_conf, conf=conf)
+        perf_tests[test_name] = importer.fetch(test_conf, selector)
+        perf_tests[test_name].find_change_points()
+        if isinstance(importer, FalloutImporter):
+            fallout_importers[test_name] = importer
 
-    results = FalloutImporter(fallout, graphite).fetch(test, user, selector)
-    results.find_change_points()
+    if update_grafana_flag:
+        grafana = Grafana(conf.grafana)
+        for test_name, importer in fallout_importers.items():
+            update_grafana(perf_tests[test_name], importer.fallout, importer.graphite, grafana)
 
-    logging.info("Determining new Grafana annotations...")
+    #TODO: Improve this output
+    for test_name, results in perf_tests.items():
+        report = Report(results)
+        print(f"\n{test_name}")
+        print(report.format_log_annotated())
+    exit(0)
+
+
+def update_grafana(
+        perf_test: PerformanceTest,
+        fallout: Fallout,
+        graphite: Graphite,
+        grafana: Grafana):
+
+    logging.info(f"Determining new Grafana annotations for test {perf_test.test_name}...")
     annotations = []
     event_processor = EventProcessor(fallout, graphite)
-    for change_point in results.change_points:
+    for change_point in perf_test.change_points:
         for change in change_point.changes:
             relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
             if len(relevant_dashboard_panels) > 0:
                 # determine Fallout and GitHub hyperlinks for displaying in annotation
                 annotation_text = event_processor.get_html_from_test_run_event(
-                    test_name=test,
+                    test_name=perf_test.test_name,
                     timestamp=datetime.fromtimestamp(change.time, tz=pytz.UTC)
                 )
                 for dashboard_panel in relevant_dashboard_panels:
@@ -110,7 +154,6 @@ def update_grafana(conf: Config,
             grafana.delete_matching_annotations(annotation=annotation)
         for annotation in annotations:
             grafana.post_annotation(annotation)
-    exit(0)
 
 
 def setup_csv_options_parser(parser: argparse.ArgumentParser):
@@ -191,7 +234,14 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("setup", help="run interactive setup")
-    subparsers.add_parser("list", help="list available tests")
+    subparsers.add_parser("list-tests", help="list available tests")
+
+    list_metrics_parser = subparsers.add_parser("list-metrics", help="list available metrics collected for a test")
+    list_metrics_parser.add_argument(
+        "test",
+        help="name of the test in Fallout or local path to CSV file"
+    )
+    setup_csv_options_parser(list_metrics_parser)
 
     analyze_parser = subparsers.add_parser(
         "analyze",
@@ -200,15 +250,23 @@ def main():
     analyze_parser.add_argument(
         "test",
         help="name of the test in Fallout or path to a CSV file with data")
+    analyze_parser.add_argument('--update-grafana',
+                                help='Update Grafana dashboards with appropriate annotations of change points',
+                                action="store_true")
     setup_data_selector_parser(analyze_parser)
     setup_csv_options_parser(analyze_parser)
 
-    update_grafana_parser = subparsers.add_parser(
-        "update-grafana",
-        help="analyze performance test results, update relevant Grafana charts with annotations "
-             "for determined change points")
-    update_grafana_parser.add_argument("test", help="name of the test in Fallout")
-    setup_data_selector_parser(update_grafana_parser)
+    bulk_analyze_parser = subparsers.add_parser(
+        "bulk-analyze",
+        help="analyze a specified list of performance tests",
+        formatter_class=argparse.RawTextHelpFormatter)
+    bulk_analyze_parser.add_argument(
+        "test_group",
+        help = "path to yaml file that stores list of tests to analyze")
+    bulk_analyze_parser.add_argument('--update-grafana',
+                                help = 'Update Grafana dashboards with appropriate annotations of change points',
+                                action = "store_true")
+    setup_data_selector_parser(bulk_analyze_parser)
 
     try:
         args = parser.parse_args()
@@ -218,19 +276,30 @@ def main():
             setup()
 
         conf = config.load_config()
-        if args.command == "list":
+        if args.command == "list-tests":
             list_tests(conf, user)
+        if args.command == "list-metrics":
+            csv_options = csv_options_from_args(args)
+            list_metrics(conf, csv_options, args.test, user)
         if args.command == "analyze":
             csv_options = csv_options_from_args(args)
             data_selector = data_selector_from_args(args)
-            analyze_runs(conf, csv_options, args.test, user, data_selector)
-        if args.command == "update-grafana":
+            update_grafana_flag = args.update_grafana
+            analyze_runs(conf, csv_options, args.test, user, data_selector, update_grafana_flag)
+        if args.command == "bulk-analyze":
             data_selector = data_selector_from_args(args)
-            update_grafana(conf, args.test, user, data_selector)
+            update_grafana_flag = args.update_grafana
+            bulk_analyze_runs(conf, args.test_group, user, data_selector, update_grafana_flag)
         if args.command is None:
             parser.print_usage()
 
     except ConfigError as err:
+        logging.error(err.message)
+        exit(1)
+    except TestConfigError as err:
+        logging.error(err.message)
+        exit(1)
+    except TestGroupError as err:
         logging.error(err.message)
         exit(1)
     except FalloutError as err:

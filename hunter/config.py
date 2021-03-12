@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
-
 from ruamel.yaml import YAML
 
 from hunter.fallout import FalloutConfig
@@ -40,7 +38,7 @@ def load_config_from(config_file: Path) -> Config:
                 url=config["fallout"]["url"]),
             graphite=GraphiteConfig(
                 url=config["graphite"]["url"],
-                suffixes=config["graphite"]["suffixes"]),
+                suffixes=config["graphite"].get("suffixes")),
             grafana=GrafanaConfig(
                 url=config["grafana"]["url"],
                 user=config["grafana"]["user"],
