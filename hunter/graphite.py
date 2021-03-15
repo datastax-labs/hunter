@@ -189,25 +189,29 @@ class Graphite:
                 metrics = "*"
             from_time = to_graphite_time(selector.from_time, "-365d")
             until_time = to_graphite_time(selector.until_time, "now")
+            targets = ''
             for suffix in suffixes:
-                url = f"{self.__url}render" \
-                      f"?target={prefix}.{suffix}.{metrics}" \
-                      f"&format=json" \
-                      f"&from={from_time}" \
-                      f"&until={until_time}"
+                targets += f"target={prefix}.{suffix}.{metrics}&"
+            targets.strip("&")
 
-                data_str = urllib.request.urlopen(url).read()
-                data_as_json = json.loads(data_str)
-                for s in data_as_json:
-                    series = TimeSeries(
-                        name=s["target"],
-                        points=decode_graphite_datapoints(s))
-                    if len(series.points) > 5:
-                        result.append(series)
-                    else:
-                        warning(
-                            f"Not enough data points in series {series.name}. "
-                            f"Required at least 5 points.")
+            url = f"{self.__url}render"\
+                  f"?{targets}"\
+                  f"&format=json"\
+                  f"&from={from_time}"\
+                  f"&until={until_time}"
+
+            data_str = urllib.request.urlopen(url).read()
+            data_as_json = json.loads(data_str)
+            for s in data_as_json:
+                series = TimeSeries(
+                    name=s["target"],
+                    points=decode_graphite_datapoints(s))
+                if len(series.points) > 5:
+                    result.append(series)
+                else:
+                    warning(
+                        f"Not enough data points in series {series.name}. "
+                        f"Required at least 5 points.")
 
             return result
 
