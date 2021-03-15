@@ -3,7 +3,7 @@ from typing import List
 
 from tabulate import tabulate
 
-from hunter.analysis import PerformanceTest
+from hunter.performance_test import PerformanceTest
 from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 
 

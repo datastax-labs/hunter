@@ -1,4 +1,4 @@
-from hunter.analysis import PerformanceTest
+from hunter.performance_test import PerformanceTest
 from hunter.report import Report
 
 

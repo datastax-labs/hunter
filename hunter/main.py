@@ -7,7 +7,6 @@ from typing import Dict, Optional
 import pystache
 
 from hunter import config
-from hunter.analysis import PerformanceTest
 from hunter.config import ConfigError, Config
 from hunter.csv import CsvOptions
 from hunter.data_selector import DataSelector
@@ -16,6 +15,7 @@ from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import get_importer, FalloutImporter, DataImportError
+from hunter.performance_test import PerformanceTest
 from hunter.report import Report
 from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError

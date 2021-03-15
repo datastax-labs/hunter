@@ -5,12 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict
 
-from hunter.analysis import PerformanceTest
 from hunter.config import Config
 from hunter.csv import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.fallout import Fallout
 from hunter.graphite import DataPoint, Graphite
+from hunter.performance_test import PerformanceTest
 from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
 from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
     sliding_window, is_float, is_datetime, remove_prefix, resolution, round
