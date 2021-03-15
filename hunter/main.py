@@ -1,19 +1,17 @@
 import argparse
 import logging
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
 import pystache
-import pytz
 
 from hunter import config
 from hunter.analysis import PerformanceTest
 from hunter.config import ConfigError, Config
 from hunter.csv import CsvOptions
 from hunter.data_selector import DataSelector
-from hunter.event_processor import EventProcessor
+from hunter.attributes import get_html_from_attributes
 from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
@@ -75,10 +73,13 @@ def analyze_runs(
     perf_test = importer.fetch(test_conf, selector)
     perf_test.find_change_points()
 
-    # update Grafana first, so that associated logging messages are not the last to be printed to stdout
-    if update_grafana_flag and isinstance(importer, FalloutImporter):
-        grafana = Grafana(conf.grafana)
-        update_grafana(perf_test, importer.fallout, importer.graphite, grafana)
+    # update Grafana first, so that associated logging messages not last to be printed to stdout
+    if update_grafana_flag:
+        if isinstance(importer, FalloutImporter):
+            grafana = Grafana(conf.grafana)
+            update_grafana(perf_test, importer.fallout, grafana)
+        else:
+            logging.warning("Provided test is not compatible with Grafana updates")
 
     report = Report(perf_test)
     print(report.format_log_annotated())
@@ -106,7 +107,7 @@ def bulk_analyze_runs(
     if update_grafana_flag:
         grafana = Grafana(conf.grafana)
         for test_name, importer in fallout_importers.items():
-            update_grafana(perf_tests[test_name], importer.fallout, importer.graphite, grafana)
+            update_grafana(perf_tests[test_name], importer.fallout, grafana)
 
     #TODO: Improve this output
     for test_name, results in perf_tests.items():
@@ -116,41 +117,37 @@ def bulk_analyze_runs(
     exit(0)
 
 
-def update_grafana(
-        perf_test: PerformanceTest,
-        fallout: Fallout,
-        graphite: Graphite,
-        grafana: Grafana):
-
+def update_grafana(perf_test: PerformanceTest, fallout: Fallout, grafana: Grafana):
     logging.info(f"Determining new Grafana annotations for test {perf_test.test_name}...")
     annotations = []
-    event_processor = EventProcessor(fallout, graphite)
     for change_point in perf_test.change_points:
+        annotation_text = get_html_from_attributes(
+            test_name=perf_test.test_name,
+            attributes=change_point.attributes,
+            fallout=fallout
+        )
         for change in change_point.changes:
-            relevant_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
-            if len(relevant_dashboard_panels) > 0:
-                # determine Fallout and GitHub hyperlinks for displaying in annotation
-                annotation_text = event_processor.get_html_from_test_run_event(
-                    test_name=perf_test.test_name,
-                    timestamp=datetime.fromtimestamp(change.time, tz=pytz.UTC)
-                )
-                for dashboard_panel in relevant_dashboard_panels:
-                    # Grafana timestamps have 13 digits, Graphite timestamps have 10 (hence multiplication by 10^3)
-                    annotations.append(
-                        Annotation(
-                            dashboard_id=dashboard_panel["dashboard id"],
-                            panel_id=dashboard_panel["panel id"],
-                            time=change.time * 10**3,
-                            text=annotation_text,
-                            tags=dashboard_panel["tags"]
-                        )
+            matching_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
+            for dashboard_panel in matching_dashboard_panels:
+                # Grafana timestamps have 13 digits, Graphite timestamps have 10
+                # (hence multiplication by 10^3)
+                annotations.append(
+                    Annotation(
+                        dashboard_id=dashboard_panel["dashboard id"],
+                        panel_id=dashboard_panel["panel id"],
+                        time=change.time * 10**3,
+                        text=annotation_text,
+                        tags=dashboard_panel["tags"]
                     )
+                )
     if len(annotations) == 0:
         logging.info("No Grafana panels to update")
     else:
         logging.info("Updating Grafana with latest annotations...")
+        # sorting annotations in this order makes logging output easier to look through
+        annotations.sort(key=lambda a: (a.dashboard_id, a.panel_id, a.time))
         for annotation in annotations:
-            # remove any existing annotations that have the same dashboard id, panel id, and set of tags
+            # remove existing annotations with same dashboard id, panel id, and tags
             grafana.delete_matching_annotations(annotation=annotation)
         for annotation in annotations:
             grafana.post_annotation(annotation)
