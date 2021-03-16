@@ -1,5 +1,4 @@
 import csv
-import math
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -14,35 +13,12 @@ from hunter.fallout import Fallout
 from hunter.graphite import DataPoint, Graphite
 from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
 from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
-    sliding_window, is_float, is_datetime, remove_prefix
+    sliding_window, is_float, is_datetime, remove_prefix, resolution, round
 
 
 @dataclass
 class DataImportError(IOError):
     message: str
-
-
-def resolution(time: List[int]) -> int:
-    """
-    Graphite has a finite time resolution and the timestamps are rounded
-    to e.g. full days. This function tries to automatically detect the
-    level of rounding needed by inspecting the minimum time distance between the
-    data points.
-    """
-    res = 24 * 3600
-    if len(time) < 2:
-        return res
-    for (a, b) in sliding_window(time, 2):
-        if b - a > 0:
-            res = min(res, b - a)
-    for t in time:
-        res = math.gcd(res, t)
-    return res
-
-
-def round(x: int, divisor: int) -> int:
-    """Round x to the multiplicity of divisor not greater than x"""
-    return int(x / divisor) * divisor
 
 
 class Importer:

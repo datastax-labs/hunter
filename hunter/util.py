@@ -1,6 +1,7 @@
 import datetime
+import math
 import sys
-from collections import deque, OrderedDict
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import islice
@@ -8,6 +9,29 @@ from typing import List, TypeVar, Optional
 
 import dateparser
 from pytz import UTC
+
+
+def resolution(time: List[int]) -> int:
+    """
+    Graphite has a finite time resolution and the timestamps are rounded
+    to e.g. full days. This function tries to automatically detect the
+    level of rounding needed by inspecting the minimum time distance between the
+    data points.
+    """
+    res = 24 * 3600
+    if len(time) < 2:
+        return res
+    for (a, b) in sliding_window(time, 2):
+        if b - a > 0:
+            res = min(res, b - a)
+    for t in time:
+        res = math.gcd(res, t)
+    return res
+
+
+def round(x: int, divisor: int) -> int:
+    """Round x to the multiplicity of divisor not greater than x"""
+    return int(x / divisor) * divisor
 
 
 def remove_prefix(text: str, prefix: str) -> str:
