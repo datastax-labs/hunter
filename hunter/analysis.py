@@ -3,7 +3,6 @@ from typing import Iterable
 from typing import List
 
 import numpy as np
-from scipy.stats import mannwhitneyu
 from scipy.stats import ttest_ind_from_stats
 from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.base import SignificanceTester
@@ -47,35 +46,11 @@ class ExtendedSignificanceTester(SignificanceTester):
     def is_significant(
             self, candidate: EDivisiveChangePoint, series: np.ndarray, windows: Iterable[int]
     ) -> bool:
-        stats = self.change_point(candidate.index, series, windows)
-        return stats.pvalue <= self.pvalue
-
-
-class MannWhitneySignificanceTester(ExtendedSignificanceTester):
-    """
-    Uses two-sided Mann-Whitney test to decide if a candidate change point
-    splits the series into pieces that are significantly different from each other.
-    Does not require data to be normally distributed, but doesn't work well if the
-    number of points is smaller than 30.
-    """
-    def __init__(self, pvalue: float):
-        self.pvalue = pvalue
-
-    def change_point(
-            self,
-            index: int,
-            series: np.ndarray,
-            windows: Iterable[int]) -> ChangePoint:
-
-        (start, end) = self.find_window(index, windows)
-        left = series[start:index]
-        right = series[index:end]
-        mean_l = np.mean(left)
-        mean_r = np.mean(right)
-        std_l = np.std(left)
-        std_r = np.std(right)
-        (_, p) = mannwhitneyu(left, right, alternative='two-sided')
-        return ChangePoint(index, mean_l, mean_r, std_l, std_r, pvalue=p)
+        try:
+            stats = self.change_point(candidate.index, series, windows)
+            return stats.pvalue <= self.pvalue
+        except ValueError:
+            return False
 
 
 class TTestSignificanceTester(ExtendedSignificanceTester):
@@ -98,13 +73,20 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
         left = series[start:index]
         right = series[index:end]
 
+        if len(left) == 0 or len(right) == 0:
+            raise ValueError
+
         mean_l = np.mean(left)
         mean_r = np.mean(right)
-        std_l = np.std(left)
-        std_r = np.std(right)
-        (_, p) = ttest_ind_from_stats(mean_l, std_l, len(left),
-                                      mean_r, std_r, len(right),
-                                      alternative='two-sided')
+        std_l = np.std(left) if len(left) >= 2 else 0.0
+        std_r = np.std(right) if len(right) >= 2 else 0.0
+
+        if len(left) + len(right) > 2:
+            (_, p) = ttest_ind_from_stats(mean_l, std_l, len(left),
+                                          mean_r, std_r, len(right),
+                                          alternative='two-sided')
+        else:
+            p = 1.0
         return ChangePoint(index, mean_l, mean_r, std_l, std_r, pvalue=p)
 
 
@@ -126,15 +108,64 @@ def fill_missing(data: List[float]):
         prev = data[i]
 
 
-def compute_change_points(series: np.array,
-                          window_len: int = 30,
-                          pvalue: float = 0.001) -> List[ChangePoint]:
+def merge(change_points: List[ChangePoint],
+          series: np.array,
+          pvalue: float,
+          rel_change: float) -> List[ChangePoint]:
     """
-    Returns the indexes of change-points in a series.
+    Removes weak change points recursively going bottom-up
+    until we get only high-quality change points
+    that meet the P-value and rel_change criteria.
+
+    Parameters:
+        :param pvalue: maximum accepted pvalue
+        :param rel_change: minimum accepted relative change
+    """
+
+    tester = TTestSignificanceTester(pvalue)
+    while change_points:
+
+        # Select the change point with weakest unacceptable P-value
+        # If all points have acceptable P-values, select the change-point with
+        # the least relative change:
+        weakest_cp = max(change_points, key=lambda c: c.pvalue)
+        if weakest_cp.pvalue < pvalue:
+            weakest_cp = min(change_points, key=lambda c: abs(c.rel_change()))
+            if abs(weakest_cp.rel_change()) > rel_change:
+                return change_points
+
+
+        # Remove the point from the list
+        weakest_cp_index = change_points.index(weakest_cp)
+        del change_points[weakest_cp_index]
+
+
+        # We can't continue yet, because by removing a change_point
+        # the adjacent change points changed their properties.
+        # Recompute the adjacent change point stats:
+        windows = [0] + [cp.index for cp in change_points] + [len(series)]
+
+        def recompute(index: int):
+            if index < 0 or index >= len(change_points):
+                return
+            cp = change_points[index]
+            change_points[index] = tester.change_point(cp.index, series, windows)
+
+        recompute(weakest_cp_index)
+        recompute(weakest_cp_index + 1)
+
+    return change_points
+
+
+def split(series: np.array,
+          window_len: int = 30,
+          pvalue: float = 0.001) -> List[ChangePoint]:
+    """
+    Finds change points by splitting the series top-down.
 
     Internally it uses the EDivisive algorithm from mongodb-signal-processing
     that recursively splits the series in a way to maximize some measure of
-    dissimilarity (denoted qhat) between the split parts.
+    dissimilarity (denoted qhat) between the chunks.
     Splitting happens as long as the dissimilarity is statistically significant.
 
     Unfortunately this algorithms has a few downsides:
@@ -167,3 +198,10 @@ def compute_change_points(series: np.array,
     return [tester.change_point(i, series, windows) for i in indexes]
 
 
+def compute_change_points(
+        series: np.array,
+        window_len: int = 50,
+        pvalue: float = 0.001,
+        rel_change: float = 0.05) -> List[ChangePoint]:
+    change_points = split(series, window_len, pvalue * 10)
+    return merge(change_points, series, pvalue, rel_change)

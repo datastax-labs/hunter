@@ -3,10 +3,7 @@ from dataclasses import dataclass
 from itertools import groupby
 from typing import Dict, List, Optional
 
-from numpy import mean
-
 from hunter.analysis import fill_missing, compute_change_points
-from hunter.util import sliding_window
 
 
 @dataclass
