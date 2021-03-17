@@ -7,6 +7,18 @@ from hunter.analysis import fill_missing, compute_change_points
 
 
 @dataclass
+class AnalysisOptions:
+    window_len: int
+    max_pvalue: float
+    min_magnitude: float
+
+    def __init__(self):
+        self.window_len = 50
+        self.max_pvalue = 0.001
+        self.min_magnitude = 0.0
+
+
+@dataclass
 class Change:
     metric: str
     index: int
@@ -15,8 +27,15 @@ class Change:
     new_mean: float
     pvalue: float
 
-    def change_percent(self) -> float:
+    def forward_change_percent(self) -> float:
         return (self.new_mean / self.old_mean - 1.0) * 100.0
+
+    def backward_change_percent(self) -> float:
+        return (self.old_mean / self.new_mean - 1.0) * 100.0
+
+    def magnitude(self) -> float:
+        return max(abs(self.new_mean / self.old_mean - 1.0),
+                   abs(self.old_mean / self.new_mean - 1.0))
 
 
 @dataclass
@@ -40,7 +59,6 @@ class PerformanceTest:
     time: List[int]
     attributes: Dict[str, List[str]]
     data: Dict[str, List[float]]
-    change_points: Optional[List[ChangePoint]]
 
     def __init__(self,
                  test_name: str,
@@ -61,7 +79,8 @@ class PerformanceTest:
             result[k] = v[index]
         return result
 
-    def find_change_points(self) -> List[ChangePoint]:
+    def find_change_points(self, analysis_conf: AnalysisOptions = AnalysisOptions()) \
+            -> List[ChangePoint]:
         if self.change_points is not None:
             return self.change_points
         if len(self.time) == 0:
@@ -72,7 +91,11 @@ class PerformanceTest:
         for metric, values in self.data.items():
             values = values.copy()
             fill_missing(values)
-            change_points = compute_change_points(values)
+            change_points = compute_change_points(
+                values,
+                window_len=analysis_conf.window_len,
+                max_pvalue=analysis_conf.max_pvalue,
+                min_magnitude=analysis_conf.min_magnitude)
             for c in change_points:
                 changes.append(Change(
                     index=c.index,

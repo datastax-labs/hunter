@@ -15,7 +15,7 @@ from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import get_importer, FalloutImporter, DataImportError
-from hunter.performance_test import PerformanceTest
+from hunter.performance_test import PerformanceTest, AnalysisOptions
 from hunter.report import Report
 from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError
@@ -65,13 +65,14 @@ def analyze_runs(
         test: str,
         user: Optional[str],
         selector: DataSelector,
+        analysis_options: AnalysisOptions,
         update_grafana_flag: bool):
 
     test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
     test_conf = create_test_config(test_info, csv_options)
     importer = get_importer(test_conf, conf)
     perf_test = importer.fetch(test_conf, selector)
-    perf_test.find_change_points()
+    perf_test.find_change_points(analysis_options)
 
     # update Grafana first, so that associated logging messages not last to be printed to stdout
     if update_grafana_flag:
@@ -91,6 +92,7 @@ def bulk_analyze_runs(
         test_group_file: str,
         user: Optional[str],
         selector: DataSelector,
+        analysis_options: AnalysisOptions,
         update_grafana_flag: bool):
 
     test_group = TestGroup(Path(test_group_file), user)
@@ -100,7 +102,7 @@ def bulk_analyze_runs(
     for test_name, test_conf in test_group.test_configs.items():
         importer = get_importer(test_conf=test_conf, conf=conf)
         perf_tests[test_name] = importer.fetch(test_conf, selector)
-        perf_tests[test_name].find_change_points()
+        perf_tests[test_name].find_change_points(analysis_options)
         if isinstance(importer, FalloutImporter):
             fallout_importers[test_name] = importer
 
@@ -222,6 +224,46 @@ def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
     return data_selector
 
 
+def setup_analysis_options_parser(parser: argparse.ArgumentParser):
+    parser.add_argument('-P, --p-value',
+                        dest="pvalue",
+                        type=float,
+                        default=0.001,
+                        help="maximum accepted P-value of a change-point; "
+                             "P denotes the probability that the change-point has "
+                             "been found by a random coincidence, rather than a real "
+                             "difference between the data distributions")
+    parser.add_argument('-M', '--magnitude',
+                        dest="magnitude",
+                        type=float,
+                        default=0.0,
+                        help="minimum accepted magnitude of a change-point "
+                             "computed as abs(new_mean / old_mean - 1.0); use it "
+                             "to filter out stupidly small changes like < 0.01")
+    parser.add_argument('--window',
+                        default=50,
+                        type=int,
+                        dest="window",
+                        help="the number of data points analyzed at once; "
+                             "the window size affects the discriminative "
+                             "power of the change point detection algorithm; "
+                             "large windows are less susceptible to noise; "
+                             "however, a very large window may cause dismissing short regressions "
+                             "as noise so it is best to keep it short enough to include not more "
+                             "than a few change points (optimally at most 1)")
+
+
+def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
+    conf = AnalysisOptions()
+    if args.pvalue is not None:
+        conf.max_pvalue = args.pvalue
+    if args.magnitude is not None:
+        conf.min_magnitude = args.magnitude
+    if args.window is not None:
+        conf.window_len = args.window
+    return conf
+
+
 def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 
@@ -250,8 +292,10 @@ def main():
     analyze_parser.add_argument('--update-grafana',
                                 help='Update Grafana dashboards with appropriate annotations of change points',
                                 action="store_true")
+
     setup_data_selector_parser(analyze_parser)
     setup_csv_options_parser(analyze_parser)
+    setup_analysis_options_parser(analyze_parser)
 
     bulk_analyze_parser = subparsers.add_parser(
         "bulk-analyze",
@@ -264,6 +308,7 @@ def main():
                                 help = 'Update Grafana dashboards with appropriate annotations of change points',
                                 action = "store_true")
     setup_data_selector_parser(bulk_analyze_parser)
+    setup_analysis_options_parser(bulk_analyze_parser)
 
     try:
         args = parser.parse_args()
@@ -281,12 +326,16 @@ def main():
         if args.command == "analyze":
             csv_options = csv_options_from_args(args)
             data_selector = data_selector_from_args(args)
+            analysis_options = analysis_options_from_args(args)
             update_grafana_flag = args.update_grafana
-            analyze_runs(conf, csv_options, args.test, user, data_selector, update_grafana_flag)
+            analyze_runs(conf, csv_options, args.test, user, data_selector,
+                         analysis_options, update_grafana_flag)
         if args.command == "bulk-analyze":
             data_selector = data_selector_from_args(args)
             update_grafana_flag = args.update_grafana
-            bulk_analyze_runs(conf, args.test_group, user, data_selector, update_grafana_flag)
+            analysis_options = analysis_options_from_args(args)
+            bulk_analyze_runs(conf, args.test_group, user, data_selector,
+                              analysis_options, update_grafana_flag)
         if args.command is None:
             parser.print_usage()
 

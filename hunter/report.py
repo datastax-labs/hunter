@@ -44,7 +44,7 @@ class Report:
                 change = [c for c in cp.changes if c.metric == col_name]
                 if change:
                     change = change[0]
-                    change_percent = change.change_percent()
+                    change_percent = change.forward_change_percent()
                     separator += "·" * col_width + "  "
                     info += f"{change_percent:+.1f}%".rjust(col_width) + "  "
                 else:

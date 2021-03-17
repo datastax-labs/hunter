@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Reversible
 from typing import List
 
 import numpy as np
@@ -19,8 +19,17 @@ class ChangePoint:
     std_r: float
     pvalue: float
 
-    def rel_change(self):
+    def forward_rel_change(self):
+        """Relative change from left to right"""
         return self.mean_r / self.mean_l - 1.0
+
+    def backward_rel_change(self):
+        """Relative change from right to left"""
+        return self.mean_l / self.mean_r - 1.0
+
+    def magnitude(self):
+        """Maximum of absolutes of rel_change and rel_change_reversed"""
+        return max(abs(self.forward_rel_change()), abs(self.backward_rel_change()))
 
 
 class ExtendedSignificanceTester(SignificanceTester):
@@ -38,9 +47,9 @@ class ExtendedSignificanceTester(SignificanceTester):
         ...
 
     @staticmethod
-    def find_window(candidate: int, windows: Iterable[int]) -> (int, int):
-        start: int = next((x for x in reversed(windows) if x < candidate), None)
-        end: int = next((x for x in windows if x > candidate), None)
+    def find_window(candidate: int, window_endpoints: Reversible[int]) -> (int, int):
+        start: int = next((x for x in reversed(window_endpoints) if x < candidate), None)
+        end: int = next((x for x in window_endpoints if x > candidate), None)
         return start, end
 
     def is_significant(
@@ -67,9 +76,9 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
             self,
             index: int,
             series: np.ndarray,
-            windows: Iterable[int]) -> ChangePoint:
+            window_endpoints: Reversible[int]) -> ChangePoint:
 
-        (start, end) = self.find_window(index, windows)
+        (start, end) = self.find_window(index, window_endpoints)
         left = series[start:index]
         right = series[index:end]
 
@@ -110,46 +119,44 @@ def fill_missing(data: List[float]):
 
 def merge(change_points: List[ChangePoint],
           series: np.array,
-          pvalue: float,
-          rel_change: float) -> List[ChangePoint]:
+          max_pvalue: float,
+          min_magnitude: float) -> List[ChangePoint]:
     """
     Removes weak change points recursively going bottom-up
     until we get only high-quality change points
     that meet the P-value and rel_change criteria.
 
     Parameters:
-        :param pvalue: maximum accepted pvalue
-        :param rel_change: minimum accepted relative change
+        :param max_pvalue: maximum accepted pvalue
+        :param min_magnitude: minimum accepted relative change
     """
 
-    tester = TTestSignificanceTester(pvalue)
+    tester = TTestSignificanceTester(max_pvalue)
     while change_points:
 
         # Select the change point with weakest unacceptable P-value
         # If all points have acceptable P-values, select the change-point with
         # the least relative change:
         weakest_cp = max(change_points, key=lambda c: c.pvalue)
-        if weakest_cp.pvalue < pvalue:
-            weakest_cp = min(change_points, key=lambda c: abs(c.rel_change()))
-            if abs(weakest_cp.rel_change()) > rel_change:
+        if weakest_cp.pvalue < max_pvalue:
+            weakest_cp = min(change_points, key=lambda c: c.magnitude())
+            if weakest_cp.magnitude() > min_magnitude:
                 return change_points
-
 
         # Remove the point from the list
         weakest_cp_index = change_points.index(weakest_cp)
         del change_points[weakest_cp_index]
 
-
         # We can't continue yet, because by removing a change_point
         # the adjacent change points changed their properties.
         # Recompute the adjacent change point stats:
-        windows = [0] + [cp.index for cp in change_points] + [len(series)]
+        window_endpoints = [0] + [cp.index for cp in change_points] + [len(series)]
 
         def recompute(index: int):
             if index < 0 or index >= len(change_points):
                 return
             cp = change_points[index]
-            change_points[index] = tester.change_point(cp.index, series, windows)
+            change_points[index] = tester.change_point(cp.index, series, window_endpoints)
 
         recompute(weakest_cp_index)
         recompute(weakest_cp_index + 1)
@@ -159,7 +166,7 @@ def merge(change_points: List[ChangePoint],
 
 def split(series: np.array,
           window_len: int = 30,
-          pvalue: float = 0.001) -> List[ChangePoint]:
+          max_pvalue: float = 0.001) -> List[ChangePoint]:
     """
     Finds change points by splitting the series top-down.
 
@@ -182,7 +189,7 @@ def split(series: np.array,
     start = 0
     step = int(window_len / 2)
     indexes = []
-    tester = TTestSignificanceTester(pvalue)
+    tester = TTestSignificanceTester(max_pvalue)
     while start < len(series):
         end = min(start + window_len, len(series))
         calculator = cext_calculator
@@ -194,14 +201,14 @@ def split(series: np.array,
         start = max(last_new_change_point_index, start + step)
         indexes += new_indexes
 
-    windows = [0] + indexes + [len(series)]
-    return [tester.change_point(i, series, windows) for i in indexes]
+    window_endpoints = [0] + indexes + [len(series)]
+    return [tester.change_point(i, series, window_endpoints) for i in indexes]
 
 
 def compute_change_points(
         series: np.array,
         window_len: int = 50,
-        pvalue: float = 0.001,
-        rel_change: float = 0.05) -> List[ChangePoint]:
-    change_points = split(series, window_len, pvalue * 10)
-    return merge(change_points, series, pvalue, rel_change)
+        max_pvalue: float = 0.001,
+        min_magnitude: float = 0.05) -> List[ChangePoint]:
+    change_points = split(series, window_len, max_pvalue * 10)
+    return merge(change_points, series, max_pvalue, min_magnitude)
