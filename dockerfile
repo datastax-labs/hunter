@@ -41,5 +41,5 @@ RUN if [ "$(ssh-keyscan -H -t rsa github.com 2>/dev/null | \
 ENV HUNTER_HOME /srv/hunter
 WORKDIR ${HUNTER_HOME}
 # Defaults
-RUN python -m pip install --upgrade pip \
+RUN  --mount=type=ssh python -m pip install --upgrade pip \
     && poetry install -vvv
