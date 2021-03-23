@@ -11,25 +11,35 @@ from signal_processing_algorithms.e_divisive.change_points import EDivisiveChang
 
 
 @dataclass
-class ChangePoint:
-    index: int
-    mean_l: float
-    mean_r: float
-    std_l: float
-    std_r: float
+class ComparativeStats:
+    """
+    Keeps statistics of two series of data and the probability both series
+    have the same distribution.
+    """
+
+    mean_1: float
+    mean_2: float
+    std_1: float
+    std_2: float
     pvalue: float
 
     def forward_rel_change(self):
         """Relative change from left to right"""
-        return self.mean_r / self.mean_l - 1.0
+        return self.mean_2 / self.mean_1 - 1.0
 
     def backward_rel_change(self):
         """Relative change from right to left"""
-        return self.mean_l / self.mean_r - 1.0
+        return self.mean_1 / self.mean_2 - 1.0
 
-    def magnitude(self):
+    def change_magnitude(self):
         """Maximum of absolutes of rel_change and rel_change_reversed"""
         return max(abs(self.forward_rel_change()), abs(self.backward_rel_change()))
+
+
+@dataclass
+class ChangePoint:
+    index: int
+    stats: ComparativeStats
 
 
 class ExtendedSignificanceTester(SignificanceTester):
@@ -53,8 +63,8 @@ class ExtendedSignificanceTester(SignificanceTester):
         self, candidate: EDivisiveChangePoint, series: np.ndarray, windows: Iterable[int]
     ) -> bool:
         try:
-            stats = self.change_point(candidate.index, series, windows)
-            return stats.pvalue <= self.pvalue
+            cp = self.change_point(candidate.index, series, windows)
+            return cp.stats.pvalue <= self.pvalue
         except ValueError:
             return False
 
@@ -92,7 +102,8 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
             )
         else:
             p = 1.0
-        return ChangePoint(index, mean_l, mean_r, std_l, std_r, pvalue=p)
+        stats = ComparativeStats(mean_l, mean_r, std_l, std_r, p)
+        return ChangePoint(index, stats)
 
 
 def fill_missing(data: List[float]):
@@ -132,10 +143,10 @@ def merge(
         # Select the change point with weakest unacceptable P-value
         # If all points have acceptable P-values, select the change-point with
         # the least relative change:
-        weakest_cp = max(change_points, key=lambda c: c.pvalue)
-        if weakest_cp.pvalue < max_pvalue:
-            weakest_cp = min(change_points, key=lambda c: c.magnitude())
-            if weakest_cp.magnitude() > min_magnitude:
+        weakest_cp = max(change_points, key=lambda c: c.stats.pvalue)
+        if weakest_cp.stats.pvalue < max_pvalue:
+            weakest_cp = min(change_points, key=lambda c: c.stats.change_magnitude())
+            if weakest_cp.stats.change_magnitude() > min_magnitude:
                 return change_points
 
         # Remove the point from the list

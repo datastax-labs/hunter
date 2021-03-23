@@ -1,9 +1,9 @@
 import logging
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from hunter.analysis import fill_missing, compute_change_points
+from hunter.analysis import fill_missing, compute_change_points, ComparativeStats
 
 
 @dataclass
@@ -20,27 +20,27 @@ class AnalysisOptions:
 
 @dataclass
 class Change:
+    """A change-point for a single metric"""
+
     metric: str
     index: int
     time: int
-    old_mean: float
-    new_mean: float
-    pvalue: float
+    stats: ComparativeStats
 
     def forward_change_percent(self) -> float:
-        return (self.new_mean / self.old_mean - 1.0) * 100.0
+        return self.stats.forward_rel_change() * 100.0
 
     def backward_change_percent(self) -> float:
-        return (self.old_mean / self.new_mean - 1.0) * 100.0
+        return self.stats.backward_rel_change() * 100.0
 
-    def magnitude(self) -> float:
-        return max(
-            abs(self.new_mean / self.old_mean - 1.0), abs(self.old_mean / self.new_mean - 1.0)
-        )
+    def magnitude(self):
+        return self.stats.change_magnitude()
 
 
 @dataclass
 class ChangePoint:
+    """A group of change points on multiple metrics, at the same time"""
+
     index: int
     time: int
     prev_time: int
@@ -103,14 +103,7 @@ class PerformanceTest:
             )
             for c in change_points:
                 changes.append(
-                    Change(
-                        index=c.index,
-                        time=self.time[c.index],
-                        metric=metric,
-                        old_mean=c.mean_l,
-                        new_mean=c.mean_r,
-                        pvalue=c.pvalue,
-                    )
+                    Change(index=c.index, time=self.time[c.index], metric=metric, stats=c.stats)
                 )
 
         changes.sort(key=lambda c: c.index)
