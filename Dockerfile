@@ -21,6 +21,7 @@ RUN apt-get update --assume-yes && \
     build-essential \
     make \
     curl \
+    virtualenv \
     && rm -rf /var/lib/apt/lists/*
 
 # Get poetry package
@@ -45,8 +46,12 @@ RUN if [ "$(ssh-keyscan -H -t rsa github.com 2>/dev/null | \
         echo "Bad github host key" 1>&2; \
         exit 1; \
     fi
-ENV HUNTER_HOME /srv/hunter
-WORKDIR ${HUNTER_HOME}
-# Defaults
-RUN  --mount=type=ssh python -m pip install --upgrade pip \
-    && poetry install -vvv
+
+ENV PATH="${HUNTER_HOME}/bin:$PATH"
+
+RUN  --mount=type=ssh \
+    virtualenv --python python3.8 venv && \
+    . venv/bin/activate && \
+    poetry install -v && \
+    mkdir -p bin && \
+    ln -s ../venv/bin/hunter ${HUNTER_HOME}/bin
