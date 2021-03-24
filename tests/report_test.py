@@ -22,4 +22,3 @@ def test_report():
     # 1 line per each time point
     # 3 lines per each change point
     assert len(output.split("\n")) == len(time) + 2 + 3 * len(changepoints)
-

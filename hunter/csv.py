@@ -11,7 +11,7 @@ class CsvOptions:
     time_column: Optional[str]
 
     def __init__(self):
-        self.delimiter = ','
+        self.delimiter = ","
         self.quote_char = '"'
         self.time_column = None
 

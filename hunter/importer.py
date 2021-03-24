@@ -12,8 +12,17 @@ from hunter.fallout import Fallout
 from hunter.graphite import DataPoint, Graphite
 from hunter.performance_test import PerformanceTest
 from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
-from hunter.util import merge_sorted, parse_datetime, DateFormatError, \
-    sliding_window, is_float, is_datetime, remove_prefix, resolution, round
+from hunter.util import (
+    merge_sorted,
+    parse_datetime,
+    DateFormatError,
+    sliding_window,
+    is_float,
+    is_datetime,
+    remove_prefix,
+    resolution,
+    round,
+)
 
 
 @dataclass
@@ -27,7 +36,9 @@ class Importer:
     source, and creating an appropriate PerformanceLog object from this imported data.
     """
 
-    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
+    def fetch(
+        self, test_conf: TestConfig, selector: DataSelector = DataSelector()
+    ) -> PerformanceTest:
         raise NotImplementedError
 
     def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
@@ -42,7 +53,9 @@ class FalloutImporter(Importer):
         self.fallout = fallout
         self.graphite = graphite
 
-    def fetch(self, test_conf: FalloutTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
+    def fetch(
+        self, test_conf: FalloutTestConfig, selector: DataSelector = DataSelector()
+    ) -> PerformanceTest:
         """
         Loads test data from fallout and graphite.
         Converts raw timeseries data into a columnar format,
@@ -55,14 +68,19 @@ class FalloutImporter(Importer):
         test_name = test_conf.name
         test = self.fallout.get_test(test_name, user)
         # if no suffixes were specified, use all available ones
-        suffixes = test_conf.suffixes if test_conf.suffixes is not None else self.fetch_all_suffixes(test_conf)
+        suffixes = (
+            test_conf.suffixes
+            if test_conf.suffixes is not None
+            else self.fetch_all_suffixes(test_conf)
+        )
 
         graphite_result = self.graphite.fetch_data(test.graphite_prefix(), suffixes, selector)
         if not graphite_result:
             raise DataImportError(
                 f"No timeseries found in Graphite for test {test_name}. "
                 "You can define which metrics are fetched from Graphite by "
-                "setting the `suffixes` property in the configuration file.")
+                "setting the `suffixes` property in the configuration file."
+            )
 
         times = [[x.time for x in series.points] for series in graphite_result]
         time: List[int] = merge_sorted(times)
@@ -76,7 +94,8 @@ class FalloutImporter(Importer):
             values[ts.name] = column(ts.points)
 
         events = self.graphite.fetch_events(
-            test_name, user, selector.from_time, selector.until_time)
+            test_name, user, selector.from_time, selector.until_time
+        )
 
         time_resolution = resolution(time)
         events_by_time = {}
@@ -107,7 +126,11 @@ class FalloutImporter(Importer):
     def fetch_all_suffixes(self, test_conf: FalloutTestConfig) -> List[str]:
         metric_paths = self.fetch_all_metric_names(test_conf)
         prefix = self.fallout.get_test(test_conf.name, test_conf.user).graphite_prefix()
-        return sorted(list(set([remove_prefix(path, f'{prefix}.').rpartition('.')[0] for path in metric_paths])))
+        return sorted(
+            list(
+                set([remove_prefix(path, f"{prefix}.").rpartition(".")[0] for path in metric_paths])
+            )
+        )
 
 
 class CsvImporter(Importer):
@@ -121,7 +144,8 @@ class CsvImporter(Importer):
         if len(row) < len(headers):
             raise DataImportError(
                 "Number of values in the row does not match "
-                "number of columns in the table header: " + str(row))
+                "number of columns in the table header: " + str(row)
+            )
 
     def check_has_column(self, column: str, headers: List[str]):
         if column not in headers:
@@ -135,10 +159,10 @@ class CsvImporter(Importer):
         as datetime objects. If some of the values are neither float or datetime, then the
         column is assumed to contain strings.
         """
-        with open(file, newline='') as csv_file:
-            reader = csv.reader(csv_file,
-                                delimiter=self.__options.delimiter,
-                                quotechar=self.__options.quote_char)
+        with open(file, newline="") as csv_file:
+            reader = csv.reader(
+                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
+            )
             headers: List[str] = next(reader, None)
             types = [CsvColumnType.Numeric] * len(headers)
 
@@ -167,22 +191,23 @@ class CsvImporter(Importer):
             self.check_has_column(time_column, headers)
             return headers.index(time_column)
 
-    def attr_indexes(self,
-                     attributes: Optional[List[str]],
-                     headers: List[str],
-                     types: List[CsvColumnType]) -> List[int]:
+    def attr_indexes(
+        self, attributes: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
+    ) -> List[int]:
         if attributes is None:
-            return [i for i, t in enumerate(types)
-                    if t == CsvColumnType.Str or t == CsvColumnType.DateTime]
+            return [
+                i
+                for i, t in enumerate(types)
+                if t == CsvColumnType.Str or t == CsvColumnType.DateTime
+            ]
         else:
             for c in attributes:
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in attributes]
 
-    def metric_indexes(self,
-                     metrics: Optional[List[str]],
-                     headers: List[str],
-                     types: List[CsvColumnType]) -> List[int]:
+    def metric_indexes(
+        self, metrics: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
+    ) -> List[int]:
         if metrics is None:
             return [i for i, t in enumerate(types) if t == CsvColumnType.Numeric]
         else:
@@ -190,15 +215,17 @@ class CsvImporter(Importer):
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in metrics]
 
-    def fetch(self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()) -> PerformanceTest:
+    def fetch(
+        self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()
+    ) -> PerformanceTest:
         file = Path(test_conf.name)
         from_time = selector.from_time
         until_time = selector.until_time
 
-        with open(file, newline='') as csv_file:
-            reader = csv.reader(csv_file,
-                                delimiter=self.__options.delimiter,
-                                quotechar=self.__options.quote_char)
+        with open(file, newline="") as csv_file:
+            reader = csv.reader(
+                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
+            )
 
             headers: List[str] = next(reader, None)
             types: List[CsvColumnType] = self.column_types(file)
@@ -241,8 +268,8 @@ class CsvImporter(Importer):
                         data[headers[i]].append(float(row[i]))
                     except ValueError as err:
                         raise DataImportError(
-                            "Could not convert value in column " +
-                            headers[i] + ": " + err.args[0])
+                            "Could not convert value in column " + headers[i] + ": " + err.args[0]
+                        )
 
                 # Attributes are just copied as-is, with no conversion:
                 for i in attr_indexes:
@@ -253,10 +280,10 @@ class CsvImporter(Importer):
     def fetch_all_metric_names(self, test_conf: CsvTestConfig) -> List[str]:
         metrics = []
         file = Path(test_conf.name)
-        with open(file, newline='') as csv_file:
-            reader = csv.reader(csv_file,
-                                delimiter=self.__options.delimiter,
-                                quotechar=self.__options.quote_char)
+        with open(file, newline="") as csv_file:
+            reader = csv.reader(
+                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
+            )
 
             headers: List[str] = next(reader, None)
             types: List[CsvColumnType] = self.column_types(file)
@@ -266,14 +293,13 @@ class CsvImporter(Importer):
         return metrics
 
     def __select_columns(self, headers, selector):
-        value_indexes = \
-            [i
-             for i in range(len(headers))
-             if headers[i] != self.__options.time_column
-             and (selector.attributes is None or
-                  headers[i] not in selector.attributes)
-             and (selector.metrics is None
-                  or headers[i] in selector.metrics)]
+        value_indexes = [
+            i
+            for i in range(len(headers))
+            if headers[i] != self.__options.time_column
+            and (selector.attributes is None or headers[i] not in selector.attributes)
+            and (selector.metrics is None or headers[i] in selector.metrics)
+        ]
         if len(value_indexes) == 0:
             raise DataImportError("No metrics found")
         return value_indexes

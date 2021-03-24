@@ -93,9 +93,9 @@ class PanelMetric:
 
         This method will replace a templated variable with the regex pattern [^.]+ in a Grafana metric query token.
         """
-        template_variable_index = metric_token.find('$')
+        template_variable_index = metric_token.find("$")
         if template_variable_index > -1:
-            new_metric_token = f'{metric_token[:template_variable_index]}[^{self.delimiter}]+'
+            new_metric_token = f"{metric_token[:template_variable_index]}[^{self.delimiter}]+"
             return new_metric_token
         else:
             new_metric_token = metric_token
@@ -114,11 +114,13 @@ class PanelMetric:
         This helper method will recursively convert all wildcards with the regex pattern [^.]+ in a Grafana
         metric query token.
         """
-        wildcard_index = metric_token.find('*')
+        wildcard_index = metric_token.find("*")
         if wildcard_index > -1:
-            new_metric_token = f'{metric_token[:wildcard_index]}' \
-                               f'[^{self.delimiter}]+' \
-                               f'{metric_token[wildcard_index + 1:]}'
+            new_metric_token = (
+                f"{metric_token[:wildcard_index]}"
+                f"[^{self.delimiter}]+"
+                f"{metric_token[wildcard_index + 1:]}"
+            )
             return self.__replace_wildcards(new_metric_token)
         else:
             return metric_token
@@ -139,12 +141,12 @@ class PanelMetric:
         or_start_index = metric_token.find("{")
         if or_start_index > -1:
             or_end_index = metric_token.find("}")
-            options_string = metric_token[or_start_index + 1:or_end_index]
+            options_string = metric_token[or_start_index + 1 : or_end_index]
             options = [option.strip() for option in options_string.split(",")]
             new_metric_token = f"{metric_token[:or_start_index]}("
             for option in options:
                 new_metric_token += f"{option}|"
-            new_metric_token = new_metric_token.strip('|')
+            new_metric_token = new_metric_token.strip("|")
             new_metric_token += f"){metric_token[or_end_index + 1:]}"
             return self.__replace_or_options(new_metric_token)
         else:
@@ -162,8 +164,9 @@ class PanelMetric:
         """
         hardcoded_metric_query_tokens = hardcoded_metric.split(self.delimiter)
         parametrized_metric_tokens = self.parametrized_metric.split(self.delimiter)
-        assert len(hardcoded_metric_query_tokens) == len(parametrized_metric_tokens), \
-            f"Query pattern mismatch: {hardcoded_metric} vs. {self.parametrized_metric}"
+        assert len(hardcoded_metric_query_tokens) == len(
+            parametrized_metric_tokens
+        ), f"Query pattern mismatch: {hardcoded_metric} vs. {self.parametrized_metric}"
         tags = []
         for index, token in enumerate(hardcoded_metric_query_tokens):
             if token != parametrized_metric_tokens[index]:
@@ -217,8 +220,8 @@ class Dashboard:
         else:
             panels_info = dashboard_info.get("panels")
         # get any panels that correspond to a graph
-        graph_panels_info = list(filter(lambda p: p['type'] == 'graph', panels_info))
-        rows = filter(lambda p: p['type'] == 'row', panels_info)
+        graph_panels_info = list(filter(lambda p: p["type"] == "graph", panels_info))
+        rows = filter(lambda p: p["type"] == "row", panels_info)
         for row in rows:
             row_panels_info = row["panels"]
             for panel_info in row_panels_info:
@@ -300,19 +303,17 @@ class Grafana:
                     if re.match(regex_pattern, metric):
                         tags = panel_metric.determine_tags(metric)
                         results.append(
-                            {
-                                "dashboard id": dashboard_id,
-                                "panel id": panel_id,
-                                "tags": tags
-                            }
+                            {"dashboard id": dashboard_id, "panel id": panel_id, "tags": tags}
                         )
         return results
 
-    def fetch_matching_annotations(self,
-                                   annotation: Optional[Annotation] = None,
-                                   dashboard_id: Optional[int] = None,
-                                   panel_id: Optional[int] = None,
-                                   tags: Optional[List[str]] = None) -> List[Dict]:
+    def fetch_matching_annotations(
+        self,
+        annotation: Optional[Annotation] = None,
+        dashboard_id: Optional[int] = None,
+        panel_id: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+    ) -> List[Dict]:
         """
         Reference:
         - https://grafana.com/docs/grafana/latest/http_api/annotations/#find-annotations
@@ -321,7 +322,7 @@ class Grafana:
             return self.fetch_matching_annotations(
                 dashboard_id=annotation.dashboard_id,
                 panel_id=annotation.panel_id,
-                tags=annotation.tags
+                tags=annotation.tags,
             )
         else:
             url = f"{self.__url}api/annotations"
@@ -333,17 +334,21 @@ class Grafana:
             if tags is not None:
                 query_parameters["tags"] = tags
             try:
-                response = requests.get(url=url, params=query_parameters, auth=(self.__user, self.__password))
+                response = requests.get(
+                    url=url, params=query_parameters, auth=(self.__user, self.__password)
+                )
                 response.raise_for_status()
                 return response.json()
             except HTTPError as err:
                 raise GrafanaError(str(err))
 
-    def delete_matching_annotations(self,
-                                    annotation: Optional[Annotation] = None,
-                                    dashboard_id: Optional[int] = None,
-                                    panel_id: Optional[int] = None,
-                                    tags: Optional[List[str]] = None):
+    def delete_matching_annotations(
+        self,
+        annotation: Optional[Annotation] = None,
+        dashboard_id: Optional[int] = None,
+        panel_id: Optional[int] = None,
+        tags: Optional[List[str]] = None,
+    ):
         """
         Reference:
         - https://grafana.com/docs/grafana/latest/http_api/annotations/#delete-annotation-by-id
@@ -352,13 +357,11 @@ class Grafana:
             matching_annotation_dicts = self.fetch_matching_annotations(annotation=annotation)
         else:
             matching_annotation_dicts = self.fetch_matching_annotations(
-                dashboard_id=dashboard_id,
-                panel_id=panel_id,
-                tags=tags
+                dashboard_id=dashboard_id, panel_id=panel_id, tags=tags
             )
         url = f"{self.__url}api/annotations"
         for annotation_dict in matching_annotation_dicts:
-            annotation_id = annotation_dict['id']
+            annotation_id = annotation_dict["id"]
             annotation_url = f"{url}/{annotation_id}"
             try:
                 response = requests.delete(url=annotation_url, auth=(self.__user, self.__password))
@@ -372,14 +375,14 @@ class Grafana:
         - https://grafana.com/docs/grafana/latest/http_api/annotations/#create-annotation
         """
         dashboard_title = self.__dashboards[annotation.dashboard_id].get_title()
-        panel_title = self.__dashboards[annotation.dashboard_id].get_panel(annotation.panel_id).get_title()
+        panel_title = (
+            self.__dashboards[annotation.dashboard_id].get_panel(annotation.panel_id).get_title()
+        )
         info(f"Creating annotation for dashboard: {dashboard_title}, panel: {panel_title}...")
         url = f"{self.__url}api/annotations"
         try:
             response = requests.post(
-                url=url,
-                data=asdict(annotation),
-                auth=(self.__user, self.__password)
+                url=url, data=asdict(annotation), auth=(self.__user, self.__password)
             )
             response.raise_for_status()
         except HTTPError as err:

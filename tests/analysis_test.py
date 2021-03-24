@@ -38,16 +38,17 @@ def test_change_point_min_magnitude():
 
     for change_point in change_points:
         for change in change_point.changes:
-            assert change.magnitude() >= options.min_magnitude, \
-                f"All change points must have magnitude greater than {options.min_magnitude}"
+            assert (
+                change.magnitude() >= options.min_magnitude
+            ), f"All change points must have magnitude greater than {options.min_magnitude}"
 
 
 def test_change_point_detection_performance():
-    timestamps = range(0, 90)   # 3 months of data
+    timestamps = range(0, 90)  # 3 months of data
     series = [random() for x in timestamps]
 
     start_time = time.process_time()
-    for run in range(0, 10):    # 10 series
+    for run in range(0, 10):  # 10 series
         test = PerformanceTest("test", list(timestamps), {"series": series}, {})
         test.find_change_points()
     end_time = time.process_time()
@@ -67,10 +68,30 @@ def test_fill_missing():
 
 
 def test_single_series():
-    series = [1.02, 0.95, 0.99, 1.00, 1.12, 1.00, 1.01, 0.98, 1.01, 0.96,
-              0.50, 0.51, 0.48, 0.48, 0.55, 0.50, 0.49, 0.51, 0.50, 0.49]
+    series = [
+        1.02,
+        0.95,
+        0.99,
+        1.00,
+        1.12,
+        1.00,
+        1.01,
+        0.98,
+        1.01,
+        0.96,
+        0.50,
+        0.51,
+        0.48,
+        0.48,
+        0.55,
+        0.50,
+        0.49,
+        0.51,
+        0.50,
+        0.49,
+    ]
     indexes = [c.index for c in compute_change_points(series, window_len=10, max_pvalue=0.0001)]
-    assert(indexes == [10])
+    assert indexes == [10]
 
 
 def test_significance_tester():
@@ -85,6 +106,3 @@ def test_significance_tester():
     cp = tester.change_point(5, series, [0, len(series)])
     assert tester.is_significant(EDivisiveChangePoint(5), series, [0, len(series)])
     assert 0.00 < cp.pvalue < 0.001
-
-
-

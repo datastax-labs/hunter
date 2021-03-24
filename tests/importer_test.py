@@ -13,12 +13,14 @@ def create_test_conf_from_test_info(test_info: Dict) -> CsvTestConfig:
     This helper method is implicitly testing the importer.create_test_config method
     """
     test_conf = create_test_config(test_info=test_info)
-    assert isinstance(test_conf, CsvTestConfig), f"Did not properly create a CsvTestConfig from {test_info}"
+    assert isinstance(
+        test_conf, CsvTestConfig
+    ), f"Did not properly create a CsvTestConfig from {test_info}"
     return test_conf
 
 
 def test_import_csv():
-    test_info = {"name" : "tests/resources/sample.csv"}
+    test_info = {"name": "tests/resources/sample.csv"}
     test_conf = create_test_conf_from_test_info(test_info=test_info)
     importer = CsvImporter(options=test_conf.csv_options)
     test = importer.fetch(test_conf=test_conf)
@@ -30,7 +32,7 @@ def test_import_csv():
 
 
 def test_import_csv_with_metrics_filter():
-    test_info = {"name" : "tests/resources/sample.csv"}
+    test_info = {"name": "tests/resources/sample.csv"}
     test_conf = create_test_conf_from_test_info(test_info=test_info)
     importer = CsvImporter(options=test_conf.csv_options)
     selector = DataSelector()
@@ -42,7 +44,7 @@ def test_import_csv_with_metrics_filter():
 
 
 def test_import_csv_with_time_filter():
-    test_info = {"name" : "tests/resources/sample.csv"}
+    test_info = {"name": "tests/resources/sample.csv"}
     test_conf = create_test_conf_from_test_info(test_info=test_info)
     importer = CsvImporter(options=test_conf.csv_options)
     selector = DataSelector()
@@ -57,12 +59,7 @@ def test_import_csv_with_time_filter():
 
 
 def test_import_csv_with_unix_timestamps():
-    test_info = {
-        "name" : "tests/resources/sample.csv",
-        "csv_options": {
-            "time_column": "time"
-        }
-    }
+    test_info = {"name": "tests/resources/sample.csv", "csv_options": {"time_column": "time"}}
     test_conf = create_test_conf_from_test_info(test_info=test_info)
     importer = CsvImporter(options=test_conf.csv_options)
     test = importer.fetch(test_conf=test_conf)
@@ -72,5 +69,3 @@ def test_import_csv_with_unix_timestamps():
     assert len(test.data["metric2"]) == 10
     ts = datetime(2021, 1, 1, 2, 0, 0, tzinfo=pytz.UTC).timestamp()
     assert test.time[0] == ts
-
-

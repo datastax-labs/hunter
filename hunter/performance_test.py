@@ -34,8 +34,9 @@ class Change:
         return (self.old_mean / self.new_mean - 1.0) * 100.0
 
     def magnitude(self) -> float:
-        return max(abs(self.new_mean / self.old_mean - 1.0),
-                   abs(self.old_mean / self.new_mean - 1.0))
+        return max(
+            abs(self.new_mean / self.old_mean - 1.0), abs(self.old_mean / self.new_mean - 1.0)
+        )
 
 
 @dataclass
@@ -60,11 +61,13 @@ class PerformanceTest:
     attributes: Dict[str, List[str]]
     data: Dict[str, List[float]]
 
-    def __init__(self,
-                 test_name: str,
-                 time: List[int],
-                 data: Dict[str, List[float]],
-                 metadata: Dict[str, List[str]]):
+    def __init__(
+        self,
+        test_name: str,
+        time: List[int],
+        data: Dict[str, List[float]],
+        metadata: Dict[str, List[str]],
+    ):
         self.test_name = test_name
         self.time = time
         self.attributes = metadata
@@ -79,8 +82,9 @@ class PerformanceTest:
             result[k] = v[index]
         return result
 
-    def find_change_points(self, analysis_conf: AnalysisOptions = AnalysisOptions()) \
-            -> List[ChangePoint]:
+    def find_change_points(
+        self, analysis_conf: AnalysisOptions = AnalysisOptions()
+    ) -> List[ChangePoint]:
         if self.change_points is not None:
             return self.change_points
         if len(self.time) == 0:
@@ -95,15 +99,19 @@ class PerformanceTest:
                 values,
                 window_len=analysis_conf.window_len,
                 max_pvalue=analysis_conf.max_pvalue,
-                min_magnitude=analysis_conf.min_magnitude)
+                min_magnitude=analysis_conf.min_magnitude,
+            )
             for c in change_points:
-                changes.append(Change(
-                    index=c.index,
-                    time=self.time[c.index],
-                    metric=metric,
-                    old_mean=c.mean_l,
-                    new_mean=c.mean_r,
-                    pvalue=c.pvalue))
+                changes.append(
+                    Change(
+                        index=c.index,
+                        time=self.time[c.index],
+                        metric=metric,
+                        old_mean=c.mean_l,
+                        new_mean=c.mean_r,
+                        pvalue=c.pvalue,
+                    )
+                )
 
         changes.sort(key=lambda c: c.index)
         points = []
@@ -114,7 +122,8 @@ class PerformanceTest:
                 prev_time=self.time[k - 1],
                 attributes=self.attributes_at(k),
                 prev_attributes=self.attributes_at(k - 1),
-                changes=list(g))
+                changes=list(g),
+            )
             points.append(cp)
 
         self.change_points = points

@@ -24,20 +24,20 @@ from hunter.util import parse_datetime, DateFormatError
 def setup():
     fallout_user = input("Fallout user name (email): ")
     fallout_token = input("Fallout token: ")
-    conf_template = \
-        (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
-    conf_yaml = pystache.render(conf_template, {
-        'fallout_token': fallout_token,
-        'fallout_user': fallout_user
-    })
+    conf_template = (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
+    conf_yaml = pystache.render(
+        conf_template, {"fallout_token": fallout_token, "fallout_user": fallout_user}
+    )
 
-    test_group_template = (Path(__file__).parent / "resources" / "test_group.yaml.template").read_text()
+    test_group_template = (
+        Path(__file__).parent / "resources" / "test_group.yaml.template"
+    ).read_text()
     test_group_yaml = pystache.render(test_group_template)
 
-    hunter_conf_dir = (Path.home() / ".hunter")
+    hunter_conf_dir = Path.home() / ".hunter"
     if not hunter_conf_dir.exists():
         hunter_conf_dir.mkdir()
-    os.umask(0o600) # Don't share credentials with other users
+    os.umask(0o600)  # Don't share credentials with other users
     (Path.home() / ".hunter" / "conf.yaml").write_text(conf_yaml)
     (Path.home() / ".hunter" / "test_group.yaml").write_text(test_group_yaml)
     exit(0)
@@ -51,7 +51,7 @@ def list_tests(conf: Config, user: Optional[str]):
 
 
 def list_metrics(conf: Config, csv_options: CsvOptions, test: str, user: Optional[str]):
-    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_info = {"name": test, "user": user, "suffixes": conf.graphite.suffixes}
     test_conf = create_test_config(test_info, csv_options)
     importer = get_importer(test_conf, conf)
     for metric_name in importer.fetch_all_metric_names(test_conf):
@@ -60,15 +60,16 @@ def list_metrics(conf: Config, csv_options: CsvOptions, test: str, user: Optiona
 
 
 def analyze_runs(
-        conf: Config,
-        csv_options: CsvOptions,
-        test: str,
-        user: Optional[str],
-        selector: DataSelector,
-        analysis_options: AnalysisOptions,
-        update_grafana_flag: bool):
+    conf: Config,
+    csv_options: CsvOptions,
+    test: str,
+    user: Optional[str],
+    selector: DataSelector,
+    analysis_options: AnalysisOptions,
+    update_grafana_flag: bool,
+):
 
-    test_info = {'name': test, 'user': user, 'suffixes': conf.graphite.suffixes}
+    test_info = {"name": test, "user": user, "suffixes": conf.graphite.suffixes}
     test_conf = create_test_config(test_info, csv_options)
     importer = get_importer(test_conf, conf)
     perf_test = importer.fetch(test_conf, selector)
@@ -88,12 +89,13 @@ def analyze_runs(
 
 
 def bulk_analyze_runs(
-        conf: Config,
-        test_group_file: str,
-        user: Optional[str],
-        selector: DataSelector,
-        analysis_options: AnalysisOptions,
-        update_grafana_flag: bool):
+    conf: Config,
+    test_group_file: str,
+    user: Optional[str],
+    selector: DataSelector,
+    analysis_options: AnalysisOptions,
+    update_grafana_flag: bool,
+):
 
     test_group = TestGroup(Path(test_group_file), user)
     perf_tests = {}
@@ -111,7 +113,7 @@ def bulk_analyze_runs(
         for test_name, importer in fallout_importers.items():
             update_grafana(perf_tests[test_name], importer.fallout, grafana)
 
-    #TODO: Improve this output
+    # TODO: Improve this output
     for test_name, results in perf_tests.items():
         report = Report(results)
         print(f"\n{test_name}")
@@ -124,9 +126,7 @@ def update_grafana(perf_test: PerformanceTest, fallout: Fallout, grafana: Grafan
     annotations = []
     for change_point in perf_test.change_points:
         annotation_text = get_html_from_attributes(
-            test_name=perf_test.test_name,
-            attributes=change_point.attributes,
-            fallout=fallout
+            test_name=perf_test.test_name, attributes=change_point.attributes, fallout=fallout
         )
         for change in change_point.changes:
             matching_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)
@@ -137,9 +137,9 @@ def update_grafana(perf_test: PerformanceTest, fallout: Fallout, grafana: Grafan
                     Annotation(
                         dashboard_id=dashboard_panel["dashboard id"],
                         panel_id=dashboard_panel["panel id"],
-                        time=change.time * 10**3,
+                        time=change.time * 10 ** 3,
                         text=annotation_text,
-                        tags=dashboard_panel["tags"]
+                        tags=dashboard_panel["tags"],
                     )
                 )
     if len(annotations) == 0:
@@ -161,19 +161,22 @@ def setup_csv_options_parser(parser: argparse.ArgumentParser):
         metavar="CHAR",
         dest="csv_delimiter",
         default=",",
-        help="CSV column separator [default: ',']")
+        help="CSV column separator [default: ',']",
+    )
     parser.add_argument(
         "--csv-quote",
         metavar="CHAR",
         dest="csv_quote_char",
         default='"',
-        help="CSV value quote character [default: '\"']")
+        help="CSV value quote character [default: '\"']",
+    )
     parser.add_argument(
         "--csv-time-column",
         metavar="COLUMN",
         dest="csv_time_column",
         help="Name of the column storing the timestamp of each run; "
-             "if not given, hunter will try to autodetect from value types")
+        "if not given, hunter will try to autodetect from value types",
+    )
 
 
 def csv_options_from_args(args: argparse.Namespace) -> CsvOptions:
@@ -192,25 +195,29 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         "--metrics",
         metavar="LIST",
         dest="metrics",
-        help="a comma-separated list of metrics to analyze")
+        help="a comma-separated list of metrics to analyze",
+    )
     parser.add_argument(
         "--attrs",
         metavar="LIST",
         dest="attributes",
         help="a comma-separated list of attribute names associated with the runs "
-             "(e.g. commit, branch, version); "
-             "if not specified, it will be automatically filled based on available information")
+        "(e.g. commit, branch, version); "
+        "if not specified, it will be automatically filled based on available information",
+    )
     parser.add_argument(
         "--from",
         metavar="DATE",
         dest="from_time",
         help="the start of the time span to analyze; "
-             "accepts ISO, and human-readable dates like '10 weeks ago'")
+        "accepts ISO, and human-readable dates like '10 weeks ago'",
+    )
     parser.add_argument(
         "--until",
         metavar="DATE",
         dest="until_time",
-        help="the end of the time span to analyze; same syntax as --from")
+        help="the end of the time span to analyze; same syntax as --from",
+    )
 
 
 def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
@@ -225,32 +232,39 @@ def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
 
 
 def setup_analysis_options_parser(parser: argparse.ArgumentParser):
-    parser.add_argument('-P, --p-value',
-                        dest="pvalue",
-                        type=float,
-                        default=0.001,
-                        help="maximum accepted P-value of a change-point; "
-                             "P denotes the probability that the change-point has "
-                             "been found by a random coincidence, rather than a real "
-                             "difference between the data distributions")
-    parser.add_argument('-M', '--magnitude',
-                        dest="magnitude",
-                        type=float,
-                        default=0.0,
-                        help="minimum accepted magnitude of a change-point "
-                             "computed as abs(new_mean / old_mean - 1.0); use it "
-                             "to filter out stupidly small changes like < 0.01")
-    parser.add_argument('--window',
-                        default=50,
-                        type=int,
-                        dest="window",
-                        help="the number of data points analyzed at once; "
-                             "the window size affects the discriminative "
-                             "power of the change point detection algorithm; "
-                             "large windows are less susceptible to noise; "
-                             "however, a very large window may cause dismissing short regressions "
-                             "as noise so it is best to keep it short enough to include not more "
-                             "than a few change points (optimally at most 1)")
+    parser.add_argument(
+        "-P, --p-value",
+        dest="pvalue",
+        type=float,
+        default=0.001,
+        help="maximum accepted P-value of a change-point; "
+        "P denotes the probability that the change-point has "
+        "been found by a random coincidence, rather than a real "
+        "difference between the data distributions",
+    )
+    parser.add_argument(
+        "-M",
+        "--magnitude",
+        dest="magnitude",
+        type=float,
+        default=0.0,
+        help="minimum accepted magnitude of a change-point "
+        "computed as abs(new_mean / old_mean - 1.0); use it "
+        "to filter out stupidly small changes like < 0.01",
+    )
+    parser.add_argument(
+        "--window",
+        default=50,
+        type=int,
+        dest="window",
+        help="the number of data points analyzed at once; "
+        "the window size affects the discriminative "
+        "power of the change point detection algorithm; "
+        "large windows are less susceptible to noise; "
+        "however, a very large window may cause dismissing short regressions "
+        "as noise so it is best to keep it short enough to include not more "
+        "than a few change points (optimally at most 1)",
+    )
 
 
 def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
@@ -265,33 +279,36 @@ def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
 
 
 def main():
-    logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
+    logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
-    parser = argparse.ArgumentParser(
-        description="Hunts performance regressions in Fallout results")
+    parser = argparse.ArgumentParser(description="Hunts performance regressions in Fallout results")
     parser.add_argument("--user", help="user-name in Fallout")
 
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("setup", help="run interactive setup")
     subparsers.add_parser("list-tests", help="list available tests")
 
-    list_metrics_parser = subparsers.add_parser("list-metrics", help="list available metrics collected for a test")
+    list_metrics_parser = subparsers.add_parser(
+        "list-metrics", help="list available metrics collected for a test"
+    )
     list_metrics_parser.add_argument(
-        "test",
-        help="name of the test in Fallout or local path to CSV file"
+        "test", help="name of the test in Fallout or local path to CSV file"
     )
     setup_csv_options_parser(list_metrics_parser)
 
     analyze_parser = subparsers.add_parser(
         "analyze",
         help="analyze performance test results",
-        formatter_class=argparse.RawTextHelpFormatter)
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     analyze_parser.add_argument(
-        "test",
-        help="name of the test in Fallout or path to a CSV file with data")
-    analyze_parser.add_argument('--update-grafana',
-                                help='Update Grafana dashboards with appropriate annotations of change points',
-                                action="store_true")
+        "test", help="name of the test in Fallout or path to a CSV file with data"
+    )
+    analyze_parser.add_argument(
+        "--update-grafana",
+        help="Update Grafana dashboards with appropriate annotations of change points",
+        action="store_true",
+    )
 
     setup_data_selector_parser(analyze_parser)
     setup_csv_options_parser(analyze_parser)
@@ -300,13 +317,16 @@ def main():
     bulk_analyze_parser = subparsers.add_parser(
         "bulk-analyze",
         help="analyze a specified list of performance tests",
-        formatter_class=argparse.RawTextHelpFormatter)
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     bulk_analyze_parser.add_argument(
-        "test_group",
-        help = "path to yaml file that stores list of tests to analyze")
-    bulk_analyze_parser.add_argument('--update-grafana',
-                                help = 'Update Grafana dashboards with appropriate annotations of change points',
-                                action = "store_true")
+        "test_group", help="path to yaml file that stores list of tests to analyze"
+    )
+    bulk_analyze_parser.add_argument(
+        "--update-grafana",
+        help="Update Grafana dashboards with appropriate annotations of change points",
+        action="store_true",
+    )
     setup_data_selector_parser(bulk_analyze_parser)
     setup_analysis_options_parser(bulk_analyze_parser)
 
@@ -328,14 +348,22 @@ def main():
             data_selector = data_selector_from_args(args)
             analysis_options = analysis_options_from_args(args)
             update_grafana_flag = args.update_grafana
-            analyze_runs(conf, csv_options, args.test, user, data_selector,
-                         analysis_options, update_grafana_flag)
+            analyze_runs(
+                conf,
+                csv_options,
+                args.test,
+                user,
+                data_selector,
+                analysis_options,
+                update_grafana_flag,
+            )
         if args.command == "bulk-analyze":
             data_selector = data_selector_from_args(args)
             update_grafana_flag = args.update_grafana
             analysis_options = analysis_options_from_args(args)
-            bulk_analyze_runs(conf, args.test_group, user, data_selector,
-                              analysis_options, update_grafana_flag)
+            bulk_analyze_runs(
+                conf, args.test_group, user, data_selector, analysis_options, update_grafana_flag
+            )
         if args.command is None:
             parser.print_usage()
 
