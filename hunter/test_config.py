@@ -37,12 +37,11 @@ class FalloutTestConfig(TestConfig):
 
 
 def create_test_config(
-        test_info: Dict,
-        csv_options: Optional[CsvOptions] = CsvOptions(),
-        user: Optional[str] = None) -> TestConfig:
+    test_info: Dict, csv_options: Optional[CsvOptions] = CsvOptions(), user: Optional[str] = None
+) -> TestConfig:
     try:
         test_name = test_info["name"]
-        if test_name.endswith('csv'):
+        if test_name.endswith("csv"):
             return create_csv_test_config(test_info, csv_options)
         else:
             return create_fallout_test_config(test_info, user)
@@ -51,27 +50,20 @@ def create_test_config(
 
 
 def create_csv_test_config(test_info: Dict, csv_options: CsvOptions) -> CsvTestConfig:
-    test_name = test_info['name']
-    if test_info.get('csv_options'):
-        csv_options.delimiter = test_info['csv_options'].get(
-            'delimiter',
-            csv_options.delimiter
-        )
-        csv_options.quote_char = test_info['csv_options'].get(
-            'quote_char',
-            csv_options.quote_char
-        )
-        csv_options.time_column = test_info['csv_options'].get(
-            'time_column',
-            csv_options.time_column
+    test_name = test_info["name"]
+    if test_info.get("csv_options"):
+        csv_options.delimiter = test_info["csv_options"].get("delimiter", csv_options.delimiter)
+        csv_options.quote_char = test_info["csv_options"].get("quote_char", csv_options.quote_char)
+        csv_options.time_column = test_info["csv_options"].get(
+            "time_column", csv_options.time_column
         )
     return CsvTestConfig(name=test_name, csv_options=csv_options)
 
 
 def create_fallout_test_config(test_info: Dict, user: Optional[str] = None) -> FalloutTestConfig:
-    test_name = test_info['name']
-    user = test_info.get('user', user)
-    suffixes = test_info.get('suffixes')
+    test_name = test_info["name"]
+    user = test_info.get("user", user)
+    suffixes = test_info.get("suffixes")
     return FalloutTestConfig(name=test_name, user=user, suffixes=suffixes)
 
 
@@ -86,6 +78,7 @@ class TestGroup:
     Effectively serves as a container for a bunch of TestConfig objects. Note that the contained TestConfig
     objects can be a mixed of CsvTestConfig and FalloutTestConfig objects.
     """
+
     test_group_file: Path
     test_configs: Dict[str, TestConfig]
 
@@ -95,15 +88,15 @@ class TestGroup:
         self.test_configs = {}
         for test_info in yaml_content:
             try:
-                test_name = test_info['name']
+                test_name = test_info["name"]
                 self.test_configs[test_name] = create_test_config(test_info=test_info, user=user)
             except KeyError as e:
                 raise TestConfigError(f"Test configuration key not found: {e.args[0]}")
 
-    def _load_yaml(self) -> List[Dict[str,str]]:
+    def _load_yaml(self) -> List[Dict[str, str]]:
         try:
             content = self.test_group_file.read_text()
-            yaml = YAML(typ='safe')
+            yaml = YAML(typ="safe")
             return yaml.load(content)["tests"]
         except FileNotFoundError as e:
             raise TestGroupError(f"Test group file not found: {e.filename}")

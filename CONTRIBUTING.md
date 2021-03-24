@@ -17,3 +17,30 @@ poetry run hunter ...
 ```
 
 See the [poetry docs](https://python-poetry.org/docs) for more.
+
+# Running tests
+
+```
+poetry run pytest tests
+```
+
+...or using [tox](https://tox.readthedocs.io/):
+
+```
+ci-tools/tox-bootstrap
+```
+
+# Linting and formatting
+
+Code-style is enforced using [black](https://black.readthedocs.io/).  Linting is automatically applied when tox runs tests; if linting fails, you can fix it with:
+
+```
+ci-tools/tox-bootstrap -e format
+```
+
+
+# Build a docker image
+
+```
+ci-tools/tox-bootstrap -e docker-build
+```

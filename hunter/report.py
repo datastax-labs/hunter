@@ -19,12 +19,13 @@ class Report:
 
     def format_log(self) -> str:
         time_column = [format_timestamp(ts) for ts in self.__results.time]
-        table = {"time": time_column,
-                 **self.__results.attributes,
-                 **self.__results.data}
+        table = {"time": time_column, **self.__results.attributes, **self.__results.data}
         metrics = list(self.__results.data.keys())
-        headers = list(OrderedDict.fromkeys(
-            ["time", *self.__results.attributes, *remove_common_prefix(metrics)]))
+        headers = list(
+            OrderedDict.fromkeys(
+                ["time", *self.__results.attributes, *remove_common_prefix(metrics)]
+            )
+        )
         return tabulate(table, headers=headers)
 
     def format_log_annotated(self) -> str:
@@ -34,8 +35,9 @@ class Report:
         col_widths = column_widths(lines)
         indexes = [cp.index for cp in change_points]
         separators = []
-        columns = list(OrderedDict.fromkeys(
-            ["time", *self.__results.attributes, *self.__results.data]))
+        columns = list(
+            OrderedDict.fromkeys(["time", *self.__results.attributes, *self.__results.data])
+        )
         for cp in change_points:
             separator = ""
             info = ""

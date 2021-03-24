@@ -40,11 +40,11 @@ def remove_prefix(text: str, prefix: str) -> str:
     prefix, returns the original string unchanged.
     """
     if text.startswith(prefix):
-        return text[len(prefix):]
+        return text[len(prefix) :]
     return text
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def merge_sorted(lists: List[List[T]]) -> List[T]:
@@ -68,10 +68,8 @@ def merge_sorted(lists: List[List[T]]) -> List[T]:
     return output
 
 
-def remove_common_prefix(names: List[str], sep: str = ".") \
-        -> List[str]:
-    """
-    """
+def remove_common_prefix(names: List[str], sep: str = ".") -> List[str]:
+    """"""
 
     if len(names) == 0:
         return names
@@ -95,9 +93,7 @@ def eprint(*args, **kwargs):
 
 
 def format_timestamp(ts: int) -> str:
-    return datetime\
-        .fromtimestamp(ts, tz=UTC)\
-        .strftime("%Y-%m-%d %H:%M:%S %z")
+    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S %z")
 
 
 def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> List[T]:
@@ -125,9 +121,7 @@ def parse_datetime(date: Optional[str]) -> Optional[datetime]:
     """
     if date is None:
         return None
-    parsed: datetime = dateparser.parse(
-        date,
-        settings={'RETURN_AS_TIMEZONE_AWARE': True})
+    parsed: datetime = dateparser.parse(date, settings={"RETURN_AS_TIMEZONE_AWARE": True})
     if parsed is None:
         raise DateFormatError(f"Invalid datetime value: {date}")
     return parsed

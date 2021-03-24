@@ -45,7 +45,7 @@ def test_template(definition: str) -> str:
 
 def test_yaml(definition: str) -> dict:
     """Substitutes test parameters and returns parsed test definition yaml"""
-    yaml = YAML(typ='safe')
+    yaml = YAML(typ="safe")
     params = test_params(definition)
     params = yaml.load(params)
     template = test_template(definition)
@@ -67,12 +67,10 @@ class FalloutTest:
         performance results of the test runs.
         """
         try:
-            cfg_manager = self.definition["ensemble"]["observer"][
-                "configuration_manager"]
-            ctool_monitoring = next(
-                x for x in cfg_manager if x['name'] == 'ctool_monitoring')
-            properties = ctool_monitoring['properties']
-            return properties['export.prefix']
+            cfg_manager = self.definition["ensemble"]["observer"]["configuration_manager"]
+            ctool_monitoring = next(x for x in cfg_manager if x["name"] == "ctool_monitoring")
+            properties = ctool_monitoring["properties"]
+            return properties["export.prefix"]
 
         except KeyError:
             return None
@@ -98,8 +96,7 @@ class Fallout:
     def get_user(self) -> str:
         return self.__user
 
-    def get_test(self, test_name: str, user: Optional[str] = None) \
-            -> FalloutTest:
+    def get_test(self, test_name: str, user: Optional[str] = None) -> FalloutTest:
         """"Returns YAML of the Fallout test with the given name"""
         try:
             info("Fetching test definition from Fallout...")
@@ -113,14 +110,13 @@ class Fallout:
             if err.response.status_code == 404:
                 raise FalloutError(f"Test not found: {test_name}")
             else:
-                raise FalloutError(f"Failed to fetch test {test_name}: "
-                                   f"{str(err)}")
+                raise FalloutError(f"Failed to fetch test {test_name}: " f"{str(err)}")
 
     def list_tests(self, user: Optional[str]) -> List[str]:
         """"Returns the list of available Fallout tests"""
         if user is None:
             user = self.__user
-        return [t['name'] for t in self.__api.list_tests(user)]
+        return [t["name"] for t in self.__api.list_tests(user)]
 
     def get_test_url(self, test_name: str) -> str:
         return f"{self.__api.endpoint_url}tests/ui/{self.__user}/{test_name}"

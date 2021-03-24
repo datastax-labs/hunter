@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+thisdir="$(cd "$(dirname "$0")"; pwd)"
+
+pip_options=""
+
+if [[ -n "$TOX_BOOTSTRAP_QUIET" ]]; then
+    pip_options="--quiet"
+    function run()
+    {
+        "$@"
+    }
+else
+    function run()
+    {
+        echo "$@"
+        "$@"
+    }
+fi
+
+
+python=${TOX_BOOTSTRAP_PYTHON:-python3.8}
+
+run mkdir -p .tox
+run "$python" -m venv .tox/bootstrap
+run source .tox/bootstrap/bin/activate
+run pip $pip_options install --upgrade pip
+run pip $pip_options install -r "$thisdir/tox-requirements.txt"
+run exec tox "$@"

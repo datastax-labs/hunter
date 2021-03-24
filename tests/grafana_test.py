@@ -4,24 +4,33 @@ from typing import List
 from hunter.grafana import PanelMetric
 
 
-def assert_on_matching_metric_paths(panel_metric: PanelMetric, hardcoded_metric_path: str, expected_tags: List[str]):
+def assert_on_matching_metric_paths(
+    panel_metric: PanelMetric, hardcoded_metric_path: str, expected_tags: List[str]
+):
     """
     Makes sure that the generated regex pattern for some parametrized Grafana metric query (this information is stored
     in the panel_metric object that is passed in) matches up completely with a hardcoded/non-parametrized Grafana
     metric query. Then makes sure that the list of determined annotation tags matches up with an expected list of tags.
     """
     match = re.match(panel_metric.regex_pattern, hardcoded_metric_path)
-    assert match is not None, f"Did not match {hardcoded_metric_path} to generated regex " \
-                              f"pattern {panel_metric.regex_pattern} for " \
-                              f"parametrized metric {panel_metric.parametrized_metric}"
-    assert match.start() == 0 , f"Start of regex match was at character {match.start()} of {hardcoded_metric_path}"
-    assert match.end() == len(hardcoded_metric_path), f"End of regex match was at early character {match.end()} " \
-                                                      f"of {hardcoded_metric_path}"
+    assert match is not None, (
+        f"Did not match {hardcoded_metric_path} to generated regex "
+        f"pattern {panel_metric.regex_pattern} for "
+        f"parametrized metric {panel_metric.parametrized_metric}"
+    )
+    assert (
+        match.start() == 0
+    ), f"Start of regex match was at character {match.start()} of {hardcoded_metric_path}"
+    assert match.end() == len(hardcoded_metric_path), (
+        f"End of regex match was at early character {match.end()} " f"of {hardcoded_metric_path}"
+    )
     determined_tags = panel_metric.determine_tags(hardcoded_metric_path)
-    assert determined_tags == expected_tags, f"Parametrized metric: {panel_metric.parametrized_metric}, " \
-                                             f"Hardcoded metric: {hardcoded_metric_path}, " \
-                                             f"Determined tags: {determined_tags}, " \
-                                             f"Expected tags: {expected_tags}"
+    assert determined_tags == expected_tags, (
+        f"Parametrized metric: {panel_metric.parametrized_metric}, "
+        f"Hardcoded metric: {hardcoded_metric_path}, "
+        f"Determined tags: {determined_tags}, "
+        f"Expected tags: {expected_tags}"
+    )
 
 
 def assert_on_non_matching_metric_paths(panel_metric: PanelMetric, hardcoded_metric_path: str):
@@ -31,20 +40,20 @@ def assert_on_non_matching_metric_paths(panel_metric: PanelMetric, hardcoded_met
     query.
     """
     match = re.match(panel_metric.regex_pattern, hardcoded_metric_path)
-    assert match is None, f"Got invalid regex match of {hardcoded_metric_path} with regex pattern " \
-                          f"{panel_metric.regex_pattern} for parametrized metric {panel_metric.parametrized_metric}"
+    assert match is None, (
+        f"Got invalid regex match of {hardcoded_metric_path} with regex pattern "
+        f"{panel_metric.regex_pattern} for parametrized metric {panel_metric.parametrized_metric}"
+    )
 
 
 def test_replace_single_template_variable_token():
     parametrized_metric_path = "foo.bar.$node.metric"
     panel_metric = PanelMetric(parametrized_metric_path)
-    matching_metric_path_to_tags_dict = {
-        "foo.bar.server_node0.metric" : ["server_node0"]
-    }
+    matching_metric_path_to_tags_dict = {"foo.bar.server_node0.metric": ["server_node0"]}
     non_matching_metric_paths = [
         "foo.bar.metric",  # not enough tokens in path
         "foo.bar.server_node0",  # not enough tokens in path
-        "foo.bar.server_node0.other_metric"  # `other_metric` should not match with `metric`
+        "foo.bar.server_node0.other_metric",  # `other_metric` should not match with `metric`
     ]
     for path, tags in matching_metric_path_to_tags_dict.items():
         assert_on_matching_metric_paths(panel_metric, path, tags)
@@ -55,26 +64,23 @@ def test_replace_single_template_variable_token():
 def test_replace_multiple_template_variable_tokens():
     parametrized_metric_path = "$foo.bar.$node.metric"
     panel_metric = PanelMetric(parametrized_metric_path)
-    matching_metric_path_to_tags_dict = {
-        "foo.bar.server_node0.metric": ["foo", "server_node0"]
-    }
+    matching_metric_path_to_tags_dict = {"foo.bar.server_node0.metric": ["foo", "server_node0"]}
     non_matching_metric_paths = [
         "bar.metric",  # not enough tokens in path
-        "foo.bar.metric", # not enough tokens in path
+        "foo.bar.metric",  # not enough tokens in path
         "bar.server_node0.node",  # not enough tokens in path
-        "foo.bar.server_node0.other_metric" # `other_metric` should not match `metric`
+        "foo.bar.server_node0.other_metric",  # `other_metric` should not match `metric`
     ]
     for path, tags in matching_metric_path_to_tags_dict.items():
         assert_on_matching_metric_paths(panel_metric, path, tags)
     for path in non_matching_metric_paths:
         assert_on_non_matching_metric_paths(panel_metric, path)
 
+
 def test_replace_single_wildcard_token():
     parametrized_metric_path = "foo.bar.*.metric"
     panel_metric = PanelMetric(parametrized_metric_path)
-    matching_metric_path_to_tags_dict = {
-        "foo.bar.server_node1.metric": ["server_node1"]
-    }
+    matching_metric_path_to_tags_dict = {"foo.bar.server_node1.metric": ["server_node1"]}
     non_matching_metric_paths = [
         "foo.bar.metric",  # not enough tokens in path
         "foo.bar.server_node0",  # not enough tokens in path
@@ -89,13 +95,11 @@ def test_replace_single_wildcard_token():
 def test_replace_multiple_wildcard_tokens():
     parametrized_metric_path = "foo.*.server_node0.*"
     panel_metric = PanelMetric(parametrized_metric_path)
-    matching_metric_path_to_tags_dict = {
-        "foo.bar.server_node0.metric": ["bar", "metric"]
-    }
+    matching_metric_path_to_tags_dict = {"foo.bar.server_node0.metric": ["bar", "metric"]}
     non_matching_metric_paths = [
         "foo.bar.server_node0",  # not enough tokens in path
         "foo.server_node0.metric",  # not enough tokens in path
-        "foo.server_node0"  # not enough tokens in path
+        "foo.server_node0",  # not enough tokens in path
     ]
     for path, tags in matching_metric_path_to_tags_dict.items():
         assert_on_matching_metric_paths(panel_metric, path, tags)
@@ -110,7 +114,7 @@ def test_replace_multiple_wildcards_in_single_token():
         "foo.bar.server_node0.metric": ["server_node0"],
         "foo.bar.server_node1.metric": ["server_node1"],
         "foo.bar.client_node0.metric": ["client_node0"],
-        "foo.bar.client_node1.metric": ["client_node1"]
+        "foo.bar.client_node1.metric": ["client_node1"],
     }
     non_matching_metric_paths = [
         "foo.bar.metric",  # not enough tokens in path
@@ -130,7 +134,7 @@ def test_replace_single_or_option_token():
     panel_metric = PanelMetric(parametrized_metric_path)
     matching_metric_path_to_tags_dict = {
         "foo.bar.client_node0.metric": ["client_node0"],
-        "foo.bar.server_node0.metric": ["server_node0"]
+        "foo.bar.server_node0.metric": ["server_node0"],
     }
     non_matching_metric_paths = [
         "foo.bar.metric",  # not enough tokens in path
@@ -138,7 +142,7 @@ def test_replace_single_or_option_token():
         "foo.bar._node0.metric",  # options {client,server} should not match
         "foo.bar.observer_node0.metric",  # options {client,server} should not match
         "foo.bar.client_node1.metric",  # `client_node1` should not match `{client,server}_node0`
-        "foo.bar.server_node1.metric"  # `server_node1` should not match `{client,server}_node0`
+        "foo.bar.server_node1.metric",  # `server_node1` should not match `{client,server}_node0`
     ]
     for path, tags in matching_metric_path_to_tags_dict.items():
         assert_on_matching_metric_paths(panel_metric, path, tags)
@@ -153,7 +157,7 @@ def test_replace_multiple_or_option_tokens():
         "foo.bar.server_node0.metric_A": ["server_node0", "metric_A"],
         "foo.bar.server_node0.metric_B": ["server_node0", "metric_B"],
         "foo.bar.client_node0.metric_A": ["client_node0", "metric_A"],
-        "foo.bar.client_node0.metric_B": ["client_node0", "metric_B"]
+        "foo.bar.client_node0.metric_B": ["client_node0", "metric_B"],
     }
     non_matching_metric_paths = [
         "foo.bar.client_node0",  # not enough tokens in path
@@ -176,7 +180,7 @@ def test_replace_multiple_or_options_in_single_token():
         "foo.bar.client_node0.metric": ["client_node0"],
         "foo.bar.client_node1.metric": ["client_node1"],
         "foo.bar.server_node0.metric": ["server_node0"],
-        "foo.bar.server_node1.metric": ["server_node1"]
+        "foo.bar.server_node1.metric": ["server_node1"],
     }
     non_matching_metric_paths = [
         "foo.bar.metric",  # not enough tokens in path

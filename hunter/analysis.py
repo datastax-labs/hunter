@@ -37,13 +37,10 @@ class ExtendedSignificanceTester(SignificanceTester):
     Adds capability of exposing the means and deviations of both sides of the split
     and the pvalue (strength) of the split.
     """
+
     pvalue: float
 
-    def change_point(
-            self,
-            index: int,
-            series: np.ndarray,
-            windows: Iterable[int]) -> ChangePoint:
+    def change_point(self, index: int, series: np.ndarray, windows: Iterable[int]) -> ChangePoint:
         ...
 
     @staticmethod
@@ -53,7 +50,7 @@ class ExtendedSignificanceTester(SignificanceTester):
         return start, end
 
     def is_significant(
-            self, candidate: EDivisiveChangePoint, series: np.ndarray, windows: Iterable[int]
+        self, candidate: EDivisiveChangePoint, series: np.ndarray, windows: Iterable[int]
     ) -> bool:
         try:
             stats = self.change_point(candidate.index, series, windows)
@@ -69,14 +66,13 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
     This test is good if the data between the change points have normal distribution.
     It works well even with tiny numbers of points (<10).
     """
+
     def __init__(self, pvalue: float):
         self.pvalue = pvalue
 
     def change_point(
-            self,
-            index: int,
-            series: np.ndarray,
-            window_endpoints: Reversible[int]) -> ChangePoint:
+        self, index: int, series: np.ndarray, window_endpoints: Reversible[int]
+    ) -> ChangePoint:
 
         (start, end) = self.find_window(index, window_endpoints)
         left = series[start:index]
@@ -91,9 +87,9 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
         std_r = np.std(right) if len(right) >= 2 else 0.0
 
         if len(left) + len(right) > 2:
-            (_, p) = ttest_ind_from_stats(mean_l, std_l, len(left),
-                                          mean_r, std_r, len(right),
-                                          alternative='two-sided')
+            (_, p) = ttest_ind_from_stats(
+                mean_l, std_l, len(left), mean_r, std_r, len(right), alternative="two-sided"
+            )
         else:
             p = 1.0
         return ChangePoint(index, mean_l, mean_r, std_l, std_r, pvalue=p)
@@ -117,10 +113,9 @@ def fill_missing(data: List[float]):
         prev = data[i]
 
 
-def merge(change_points: List[ChangePoint],
-          series: np.array,
-          max_pvalue: float,
-          min_magnitude: float) -> List[ChangePoint]:
+def merge(
+    change_points: List[ChangePoint], series: np.array, max_pvalue: float, min_magnitude: float
+) -> List[ChangePoint]:
     """
     Removes weak change points recursively going bottom-up
     until we get only high-quality change points
@@ -164,9 +159,7 @@ def merge(change_points: List[ChangePoint],
     return change_points
 
 
-def split(series: np.array,
-          window_len: int = 30,
-          max_pvalue: float = 0.001) -> List[ChangePoint]:
+def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001) -> List[ChangePoint]:
     """
     Finds change points by splitting the series top-down.
 
@@ -206,9 +199,7 @@ def split(series: np.array,
 
 
 def compute_change_points(
-        series: np.array,
-        window_len: int = 50,
-        max_pvalue: float = 0.001,
-        min_magnitude: float = 0.05) -> List[ChangePoint]:
+    series: np.array, window_len: int = 50, max_pvalue: float = 0.001, min_magnitude: float = 0.05
+) -> List[ChangePoint]:
     change_points = split(series, window_len, max_pvalue * 10)
     return merge(change_points, series, max_pvalue, min_magnitude)

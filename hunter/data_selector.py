@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytz
 
+
 @dataclass
 class DataSelector:
     metrics: Optional[List[str]]
