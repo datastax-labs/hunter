@@ -21,7 +21,7 @@ See the [poetry docs](https://python-poetry.org/docs) for more.
 # Running tests
 
 ```
-poetry run pytest
+poetry run pytest tests
 ```
 
 ...or using [tox](https://tox.readthedocs.io/):
