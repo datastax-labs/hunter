@@ -51,6 +51,17 @@ class ExtendedSignificanceTester(SignificanceTester):
     pvalue: float
 
     def change_point(self, index: int, series: np.ndarray, windows: Iterable[int]) -> ChangePoint:
+        """
+        Computes properties of the change point if the change point gets
+        inserted at the given index into the series array.
+        """
+        ...
+
+    def compare(self, left: np.ndarray, right: np.ndarray) -> ComparativeStats:
+        """
+        Compares two sets of points for similarity / difference.
+        Computes basic stats and probability both sets come from the same distribution/
+        """
         ...
 
     @staticmethod
@@ -87,7 +98,10 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
         (start, end) = self.find_window(index, window_endpoints)
         left = series[start:index]
         right = series[index:end]
+        stats = self.compare(left, right)
+        return ChangePoint(index, stats)
 
+    def compare(self, left: np.ndarray, right: np.ndarray) -> ComparativeStats:
         if len(left) == 0 or len(right) == 0:
             raise ValueError
 
@@ -102,8 +116,7 @@ class TTestSignificanceTester(ExtendedSignificanceTester):
             )
         else:
             p = 1.0
-        stats = ComparativeStats(mean_l, mean_r, std_l, std_r, p)
-        return ChangePoint(index, stats)
+        return ComparativeStats(mean_l, mean_r, std_l, std_r, p)
 
 
 def fill_missing(data: List[float]):

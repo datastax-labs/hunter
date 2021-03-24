@@ -15,7 +15,7 @@ from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import get_importer, FalloutImporter, DataImportError
-from hunter.performance_test import PerformanceTest, AnalysisOptions
+from hunter.series import Series, AnalysisOptions
 from hunter.report import Report
 from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError
@@ -51,7 +51,7 @@ def analyze_runs(
     test_conf = create_test_config(test_info, csv_options)
     importer = get_importer(test_conf, conf)
     perf_test = importer.fetch(test_conf, selector)
-    perf_test.find_change_points(analysis_options)
+    perf_test.find_all_change_points(analysis_options)
 
     # update Grafana first, so that associated logging messages not last to be printed to stdout
     if update_grafana_flag:
@@ -82,7 +82,7 @@ def bulk_analyze_runs(
     for test_name, test_conf in test_group.test_configs.items():
         importer = get_importer(test_conf=test_conf, conf=conf)
         perf_tests[test_name] = importer.fetch(test_conf, selector)
-        perf_tests[test_name].find_change_points(analysis_options)
+        perf_tests[test_name].find_all_change_points(analysis_options)
         if isinstance(importer, FalloutImporter):
             fallout_importers[test_name] = importer
 
@@ -99,7 +99,7 @@ def bulk_analyze_runs(
     exit(0)
 
 
-def update_grafana(perf_test: PerformanceTest, fallout: Fallout, grafana: Grafana):
+def update_grafana(perf_test: Series, fallout: Fallout, grafana: Grafana):
     logging.info(f"Determining new Grafana annotations for test {perf_test.test_name}...")
     annotations = []
     for change_point in perf_test.change_points:

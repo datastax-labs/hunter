@@ -25,7 +25,8 @@ pytz = "2021.1"
 
 [tool.pytest.ini_options]
 filterwarnings = [
-    "ignore::DeprecationWarning:future"
+    "ignore::DeprecationWarning:future",
+    "ignore::pytest.PytestCollectionWarning"
 ]
 
 [tool.poetry.scripts]

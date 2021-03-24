@@ -3,7 +3,7 @@ from typing import List
 
 from tabulate import tabulate
 
-from hunter.performance_test import PerformanceTest
+from hunter.series import Series
 from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 
 
@@ -12,9 +12,9 @@ def column_widths(log: List[str]) -> List[int]:
 
 
 class Report:
-    __results: PerformanceTest
+    __results: Series
 
-    def __init__(self, results: PerformanceTest):
+    def __init__(self, results: Series):
         self.__results = results
 
     def format_log(self) -> str:
@@ -30,7 +30,7 @@ class Report:
 
     def format_log_annotated(self) -> str:
         """Returns test log with change points marked as horizontal lines"""
-        change_points = self.__results.find_change_points()
+        change_points = self.__results.all_change_points()
         lines = self.format_log().split("\n")
         col_widths = column_widths(lines)
         indexes = [cp.index for cp in change_points]

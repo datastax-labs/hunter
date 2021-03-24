@@ -1,58 +1,7 @@
-import time
-from random import random
-
 import numpy as np
 from signal_processing_algorithms.e_divisive.change_points import EDivisiveChangePoint
 
 from hunter.analysis import fill_missing, compute_change_points, TTestSignificanceTester
-from hunter.performance_test import PerformanceTest, AnalysisOptions
-
-
-def test_change_point_detection():
-
-    series1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
-    series2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
-    time = list(range(len(series1)))
-    test = PerformanceTest("test", time, {"series1": series1, "series2": series2}, {})
-
-    change_points = test.find_change_points()
-    assert len(change_points) == 2
-    assert change_points[0].index == 4
-    assert change_points[0].changes[0].metric == "series2"
-    assert change_points[1].index == 6
-    assert change_points[1].changes[0].metric == "series1"
-
-
-def test_change_point_min_magnitude():
-    series1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
-    series2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
-    time = list(range(len(series1)))
-    test = PerformanceTest("test", time, {"series1": series1, "series2": series2}, {})
-
-    options = AnalysisOptions()
-    options.min_magnitude = 0.2
-    change_points = test.find_change_points(options)
-    assert len(change_points) == 1
-    assert change_points[0].index == 6
-    assert change_points[0].changes[0].metric == "series1"
-
-    for change_point in change_points:
-        for change in change_point.changes:
-            assert (
-                change.magnitude() >= options.min_magnitude
-            ), f"All change points must have magnitude greater than {options.min_magnitude}"
-
-
-def test_change_point_detection_performance():
-    timestamps = range(0, 90)  # 3 months of data
-    series = [random() for x in timestamps]
-
-    start_time = time.process_time()
-    for run in range(0, 10):  # 10 series
-        test = PerformanceTest("test", list(timestamps), {"series": series}, {})
-        test.find_change_points()
-    end_time = time.process_time()
-    assert (end_time - start_time) < 0.5
 
 
 def test_fill_missing():
