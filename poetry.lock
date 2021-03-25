@@ -129,8 +129,16 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "expandvars"
+version = "0.6.5"
+description = "Expand system variables Unix style"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "fallout-client"
-version = "1.226.0"
+version = "1.227.0.post3+gc9688b387"
 description = "Fallout API and Command-line Client"
 category = "main"
 optional = false
@@ -150,7 +158,7 @@ setuptools-scm = ">=3.3.3,<3.4.0"
 type = "git"
 url = "ssh://git@github.com/riptano/fallout.git"
 reference = "master"
-resolved_reference = "42cd16080639130f07c5d4161b7130e96264a3d2"
+resolved_reference = "c9688b38755dd1395172ac25d99ff740102789d5"
 
 [[package]]
 name = "future"
@@ -472,7 +480,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "2166c70114009f81da811461a0eaf70f721f24264572cf8d417a0e7104660d18"
+content-hash = "980e383e96b6eea2b89154fa3ec71524172b1b7cc5da39a8e117c5feac96ba2c"
 
 [metadata.files]
 ansicon = [
@@ -520,6 +528,10 @@ dateparser = [
 ]
 docopt = [
     {file = "docopt-0.6.2.tar.gz", hash = "sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491"},
+]
+expandvars = [
+    {file = "expandvars-0.6.5-py2.py3-none-any.whl", hash = "sha256:1cba07c76da50c2528cf8d70c78e98a62ec3e9cd279ba80fa6b136330f4ad8d3"},
+    {file = "expandvars-0.6.5.tar.gz", hash = "sha256:1093a7a58ee5087c279a4cc5fd5758ad9c858c2f5bee256927b18b26a6ecc9d3"},
 ]
 fallout-client = []
 future = [

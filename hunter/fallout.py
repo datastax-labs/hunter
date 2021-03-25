@@ -1,4 +1,5 @@
 import itertools
+import os
 from dataclasses import dataclass
 from logging import info
 from typing import Optional, List
@@ -86,9 +87,14 @@ class Fallout:
     __user: str
 
     def __init__(self, conf: FalloutConfig):
+        token = conf.token
+        if token is None:
+            raise FalloutError("Fallout token not set. "
+                               "Please set Fallout token in the config file or in the "
+                               "FALLOUT_OAUTH_TOKEN variable.")
         try:
             self.__user = conf.user
-            self.__api = FalloutAPI(conf.url, conf.token)
+            self.__api = FalloutAPI(conf.url, token)
             self.__api.validate_server_version()
         except IOError as err:
             raise FalloutError(f"Failed to communicate with Fallout: {str(err)}")

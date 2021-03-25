@@ -21,28 +21,6 @@ from hunter.test_config import create_test_config, TestConfigError, TestGroup, T
 from hunter.util import parse_datetime, DateFormatError
 
 
-def setup():
-    fallout_user = input("Fallout user name (email): ")
-    fallout_token = input("Fallout token: ")
-    conf_template = (Path(__file__).parent / "resources" / "conf.yaml.template").read_text()
-    conf_yaml = pystache.render(
-        conf_template, {"fallout_token": fallout_token, "fallout_user": fallout_user}
-    )
-
-    test_group_template = (
-        Path(__file__).parent / "resources" / "test_group.yaml.template"
-    ).read_text()
-    test_group_yaml = pystache.render(test_group_template)
-
-    hunter_conf_dir = Path.home() / ".hunter"
-    if not hunter_conf_dir.exists():
-        hunter_conf_dir.mkdir()
-    os.umask(0o600)  # Don't share credentials with other users
-    (Path.home() / ".hunter" / "conf.yaml").write_text(conf_yaml)
-    (Path.home() / ".hunter" / "test_group.yaml").write_text(test_group_yaml)
-    exit(0)
-
-
 def list_tests(conf: Config, user: Optional[str]):
     fallout = Fallout(conf.fallout)
     for test_name in fallout.list_tests(user):
@@ -285,7 +263,6 @@ def main():
     parser.add_argument("--user", help="user-name in Fallout")
 
     subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser("setup", help="run interactive setup")
     subparsers.add_parser("list-tests", help="list available tests")
 
     list_metrics_parser = subparsers.add_parser(
@@ -333,9 +310,6 @@ def main():
     try:
         args = parser.parse_args()
         user = args.user
-
-        if args.command == "setup":
-            setup()
 
         conf = config.load_config()
         if args.command == "list-tests":

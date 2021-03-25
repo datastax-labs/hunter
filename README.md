@@ -28,12 +28,13 @@ pipx install git+ssh://git@github.com/riptano/hunter
 ```
 
 ## Setup
-```
-hunter setup
-```
-The installer will ask you about your Fallout user name and access token
-and will save them in `~/.hunter/conf.yaml`. 
-You can manually adjust other settings in that file as well. 
+Copy `resources/hunter.yaml` to `~/.hunter/hunter.yaml` and adjust
+Fallout and Grafana credentials. 
+
+Alternatively, it is possible to leave 
+the config file as is, and provide credentials in the environment
+by setting `FALLOUT_USER`, `FALLOUT_OAUTH_TOKEN`, `GRAFANA_USER` and `GRAFANA_PASSWORD`.
+Environment variables are expanded in the config file properties.
 
 You need to be connected to DataStax VPN to allow Hunter to connect
 to Fallout and Graphite.
