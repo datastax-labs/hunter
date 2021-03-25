@@ -67,7 +67,7 @@ def load_config() -> Config:
     """Loads config from one of the default locations"""
     paths = [Path().home() / ".hunter/hunter.yaml",
              Path().home() / ".hunter/conf.yaml",
-             Path(os.path.realpath(__file__)) / "resources/hunter.yaml"]
+             Path(os.path.realpath(__file__)).parent / "resources/hunter.yaml"]
 
     for p in paths:
         if p.exists():
