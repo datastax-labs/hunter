@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 thisdir="$(cd "$(dirname "$0")"; pwd)"
+source "$thisdir/python-versions.sh"
 
 pip_options=""
 
@@ -19,11 +20,9 @@ else
 fi
 
 
-python=${TOX_BOOTSTRAP_PYTHON:-python3.8}
-
 run mkdir -p .tox
-run "$python" -m venv .tox/bootstrap
+run "$PYTHON" -m venv .tox/bootstrap
 run source .tox/bootstrap/bin/activate
-run pip $pip_options install --upgrade pip
-run pip $pip_options install -r "$thisdir/tox-requirements.txt"
+run pip $pip_options install $pip_options --upgrade pip
+run pip $pip_options install $pip_options "tox~=$TOX_VERSION"
 run exec tox "$@"
