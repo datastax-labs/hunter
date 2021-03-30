@@ -65,13 +65,14 @@ def load_config_from(config_file: Path) -> Config:
 
 def load_config() -> Config:
     """Loads config from one of the default locations"""
-    paths = [Path().home() / ".hunter/hunter.yaml",
-             Path().home() / ".hunter/conf.yaml",
-             Path(os.path.realpath(__file__)).parent / "resources/hunter.yaml"]
+    paths = [
+        Path().home() / ".hunter/hunter.yaml",
+        Path().home() / ".hunter/conf.yaml",
+        Path(os.path.realpath(__file__)).parent / "resources/hunter.yaml",
+    ]
 
     for p in paths:
         if p.exists():
             return load_config_from(p)
 
     raise ConfigError(f"No configuration file found. Searched: {paths}")
-
