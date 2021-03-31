@@ -31,6 +31,7 @@ class ChangePoint:
 
     metric: str
     index: int
+    time: int
     stats: ComparativeStats
 
     def forward_change_percent(self) -> float:
@@ -101,7 +102,9 @@ class Series:
         )
         result = []
         for c in change_points:
-            result.append(ChangePoint(index=c.index, metric=metric, stats=c.stats))
+            result.append(
+                ChangePoint(index=c.index, time=self.time[c.index], metric=metric, stats=c.stats)
+            )
         return result
 
     def all_change_points(

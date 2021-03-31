@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import pystache
 
@@ -15,7 +15,7 @@ from hunter.fallout import Fallout, FalloutError
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import Graphite, GraphiteError
 from hunter.importer import get_importer, FalloutImporter, DataImportError
-from hunter.series import Series, AnalysisOptions
+from hunter.series import Series, AnalysisOptions, ChangePointGroup
 from hunter.report import Report
 from hunter.test_config import create_test_config, TestConfigError, TestGroup, TestGroupError
 from hunter.util import parse_datetime, DateFormatError
@@ -50,18 +50,18 @@ def analyze_runs(
     test_info = {"name": test, "user": user, "suffixes": conf.graphite.suffixes}
     test_conf = create_test_config(test_info, csv_options)
     importer = get_importer(test_conf, conf)
-    perf_test = importer.fetch(test_conf, selector)
-    perf_test.find_all_change_points(analysis_options)
+    series = importer.fetch(test_conf, selector)
+    change_points = series.all_change_points(analysis_options)
 
     # update Grafana first, so that associated logging messages not last to be printed to stdout
     if update_grafana_flag:
         if isinstance(importer, FalloutImporter):
             grafana = Grafana(conf.grafana)
-            update_grafana(perf_test, importer.fallout, grafana)
+            update_grafana(series.test_name, change_points, importer.fallout, grafana)
         else:
             logging.warning("Provided test is not compatible with Grafana updates")
 
-    report = Report(perf_test)
+    report = Report(series, change_points)
     print(report.format_log_annotated())
     exit(0)
 
@@ -74,37 +74,35 @@ def bulk_analyze_runs(
     analysis_options: AnalysisOptions,
     update_grafana_flag: bool,
 ):
+    grafana = Grafana(conf.grafana) if update_grafana_flag else None
 
     test_group = TestGroup(Path(test_group_file), user)
+    change_points = {}
     perf_tests = {}
-    # keep track of importers used for Fallout tests, in case we need to update Grafana
-    fallout_importers: Dict[str, FalloutImporter] = {}
     for test_name, test_conf in test_group.test_configs.items():
         importer = get_importer(test_conf=test_conf, conf=conf)
-        perf_tests[test_name] = importer.fetch(test_conf, selector)
-        perf_tests[test_name].find_all_change_points(analysis_options)
-        if isinstance(importer, FalloutImporter):
-            fallout_importers[test_name] = importer
-
-    if update_grafana_flag:
-        grafana = Grafana(conf.grafana)
-        for test_name, importer in fallout_importers.items():
-            update_grafana(perf_tests[test_name], importer.fallout, grafana)
+        series = importer.fetch(test_conf, selector)
+        perf_tests[test_name] = series
+        change_points[test_name] = series.all_change_points(analysis_options)
+        if grafana is not None and isinstance(importer, FalloutImporter):
+            update_grafana(test_name, change_points[test_name], importer.fallout, grafana)
 
     # TODO: Improve this output
-    for test_name, results in perf_tests.items():
-        report = Report(results)
+    for test_name, series in perf_tests.items():
+        report = Report(series, change_points[test_name])
         print(f"\n{test_name}")
         print(report.format_log_annotated())
     exit(0)
 
 
-def update_grafana(perf_test: Series, fallout: Fallout, grafana: Grafana):
-    logging.info(f"Determining new Grafana annotations for test {perf_test.test_name}...")
+def update_grafana(
+    test_name: str, change_points: List[ChangePointGroup], fallout: Fallout, grafana: Grafana
+):
+    logging.info(f"Determining new Grafana annotations for test {test_name}...")
     annotations = []
-    for change_point in perf_test.change_points:
+    for change_point in change_points:
         annotation_text = get_html_from_attributes(
-            test_name=perf_test.test_name, attributes=change_point.attributes, fallout=fallout
+            test_name=test_name, attributes=change_point.attributes, fallout=fallout
         )
         for change in change_point.changes:
             matching_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)

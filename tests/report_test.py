@@ -8,7 +8,7 @@ def test_report():
     time = list(range(len(series1)))
     test = Series("test", time, {"series1": series1, "series2": series2}, {})
     changepoints = test.all_change_points()
-    report = Report(test)
+    report = Report(test, changepoints)
     output = report.format_log_annotated()
     assert "series1" in output
     assert "series2" in output
