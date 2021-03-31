@@ -49,7 +49,7 @@ def test_import_csv_with_time_filter():
     importer = CsvImporter(options=test_conf.csv_options)
     selector = DataSelector()
     tz = pytz.timezone("Etc/GMT+1")
-    selector.from_time = datetime(2021, 1, 5, 0, 0, 0, tzinfo=tz)
+    selector.since_time = datetime(2021, 1, 5, 0, 0, 0, tzinfo=tz)
     selector.until_time = datetime(2021, 1, 7, 0, 0, 0, tzinfo=tz)
     test = importer.fetch(test_conf=test_conf, selector=selector)
     assert len(test.data.keys()) == 2

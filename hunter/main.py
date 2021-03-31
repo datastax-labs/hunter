@@ -183,18 +183,44 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         "(e.g. commit, branch, version); "
         "if not specified, it will be automatically filled based on available information",
     )
-    parser.add_argument(
-        "--from",
+    since_group = parser.add_mutually_exclusive_group()
+    since_group.add_argument(
+        "--since-commit",
+        metavar="STRING",
+        dest="since_commit",
+        help="The commit at the start of the time span to analyze",
+    )
+    since_group.add_argument(
+        "--since-version",
+        metavar="STRING",
+        dest="since_version",
+        help="The version at the start of the time span to analyze",
+    )
+    since_group.add_argument(
+        "--since",
         metavar="DATE",
-        dest="from_time",
+        dest="since_time",
         help="the start of the time span to analyze; "
         "accepts ISO, and human-readable dates like '10 weeks ago'",
     )
-    parser.add_argument(
+    until_group = parser.add_mutually_exclusive_group()
+    until_group.add_argument(
+        "--until-commit",
+        metavar="STRING",
+        dest="until_commit",
+        help="The commit at the end of the time span to analyze",
+    )
+    until_group.add_argument(
+        "--until-version",
+        metavar="STRING",
+        dest="until_version",
+        help="The version at the end of the time span to analyze",
+    )
+    until_group.add_argument(
         "--until",
         metavar="DATE",
         dest="until_time",
-        help="the end of the time span to analyze; same syntax as --from",
+        help="the end of the time span to analyze; same syntax as --since",
     )
 
 
@@ -204,8 +230,18 @@ def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
         data_selector.metrics = list(args.metrics.split(","))
     if args.attributes is not None:
         data_selector.attributes = list(args.attributes.split(","))
-    data_selector.from_time = parse_datetime(args.from_time)
-    data_selector.until_time = parse_datetime(args.until_time)
+    if args.since_commit is not None:
+        data_selector.since_commit = args.since_commit
+    if args.since_version is not None:
+        data_selector.since_version = args.since_version
+    if args.since_time is not None:
+        data_selector.since_time = parse_datetime(args.since_time)
+    if args.until_commit is not None:
+        data_selector.until_commit = args.until_commit
+    if args.until_version is not None:
+        data_selector.until_version = args.until_version
+    if args.until_time is not None:
+        data_selector.until_time = parse_datetime(args.until_time)
     return data_selector
 
 

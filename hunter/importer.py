@@ -1,7 +1,7 @@
 import csv
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict
 
@@ -16,7 +16,7 @@ from hunter.util import (
     merge_sorted,
     parse_datetime,
     DateFormatError,
-    sliding_window,
+    format_timestamp,
     is_float,
     is_datetime,
     remove_prefix,
@@ -72,6 +72,35 @@ class FalloutImporter(Importer):
             else self.fetch_all_suffixes(test_conf)
         )
 
+        # if the user has specified since_<commit/version> and/or until_<commit/version>,
+        # we need to attempt to extract a timestamp from appropriate Graphite events, and
+        # update selector.since_time and selector.until_time, respectively
+        since_events = self.graphite.fetch_events_with_matching_time_option(
+            user, test_name, selector.since_commit, selector.since_commit
+        )
+        if len(since_events) > 0:
+            # since timestamps of metrics get rounded down, in order to include these, we need to
+            # - round down the event's pub_time
+            # - subtract a small amount of time (Graphite does not appear to include the left-hand
+            # endpoint for a time range)
+            rounded_time = round(
+                int(since_events[-1].pub_time.timestamp()),
+                resolution([int(since_events[-1].pub_time.timestamp())]),
+            )
+            selector.since_time = parse_datetime(str(rounded_time)) - timedelta(milliseconds=1)
+        until_events = self.graphite.fetch_events_with_matching_time_option(
+            user, test_name, selector.until_commit, selector.until_version
+        )
+        if len(until_events) > 0:
+            selector.until_time = until_events[0].pub_time
+
+        if selector.since_time.timestamp() > selector.until_time.timestamp():
+            raise DataImportError(
+                f"Invalid time range: ["
+                f"{format_timestamp(int(selector.since_time.timestamp()))}, "
+                f"{format_timestamp(int(selector.until_time.timestamp()))}]"
+            )
+
         graphite_result = self.graphite.fetch_data(test.graphite_prefix(), suffixes, selector)
         if not graphite_result:
             raise DataImportError(
@@ -92,13 +121,13 @@ class FalloutImporter(Importer):
             values[ts.name] = column(ts.points)
 
         events = self.graphite.fetch_events(
-            test_name, user, selector.from_time, selector.until_time
+            [user, test_name], selector.since_time, selector.until_time
         )
 
         time_resolution = resolution(time)
         events_by_time = {}
         for e in events:
-            events_by_time[round(e.pub_time, time_resolution)] = e
+            events_by_time[round(int(e.pub_time.timestamp()), time_resolution)] = e
 
         run_ids = []
         commits = []
@@ -215,8 +244,15 @@ class CsvImporter(Importer):
 
     def fetch(self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()) -> Series:
         file = Path(test_conf.name)
-        from_time = selector.from_time
+        since_time = selector.since_time
         until_time = selector.until_time
+
+        if since_time.timestamp() > until_time.timestamp():
+            raise DataImportError(
+                f"Invalid time range: ["
+                f"{format_timestamp(int(since_time.timestamp()))}, "
+                f"{format_timestamp(int(until_time.timestamp()))}]"
+            )
 
         with open(file, newline="") as csv_file:
             reader = csv.reader(
@@ -250,7 +286,7 @@ class CsvImporter(Importer):
 
                 # Filter by time:
                 ts: datetime = self.__convert_time(row[time_index])
-                if from_time is not None and ts < from_time:
+                if since_time is not None and ts < since_time:
                     continue
                 if until_time is not None and ts >= until_time:
                     continue
