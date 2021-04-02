@@ -7,7 +7,7 @@ def form_hyperlink_html_str(display_text: str, url: str) -> str:
 
 
 def get_html_from_attributes(
-    test_name: str, attributes: Optional[Dict[str, str]], fallout: Fallout
+    test_name: str, user: Optional[str], attributes: Optional[Dict[str, str]], fallout: Fallout
 ) -> str:
     """
     This method is responsible for providing an HTML string corresponding to Fallout and GitHub
@@ -21,11 +21,11 @@ def get_html_from_attributes(
         if attributes.get("run"):
             html_str = form_hyperlink_html_str(
                 display_text="Fallout test run",
-                url=fallout.get_test_run_url(test_name, attributes.get("run")),
+                url=fallout.get_test_run_url(test_name, user, attributes.get("run")),
             )
         else:
             html_str = form_hyperlink_html_str(
-                display_text="Fallout test", url=fallout.get_test_url(test_name)
+                display_text="Fallout test", url=fallout.get_test_url(test_name, user)
             )
 
         # grabbing Github project repository related data

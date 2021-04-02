@@ -57,7 +57,7 @@ def analyze_runs(
     if update_grafana_flag:
         if isinstance(importer, FalloutImporter):
             grafana = Grafana(conf.grafana)
-            update_grafana(series.test_name, change_points, importer.fallout, grafana)
+            update_grafana(series.test_name, user, change_points, importer.fallout, grafana)
         else:
             logging.warning("Provided test is not compatible with Grafana updates")
 
@@ -85,7 +85,7 @@ def bulk_analyze_runs(
         perf_tests[test_name] = series
         change_points[test_name] = series.all_change_points(analysis_options)
         if grafana is not None and isinstance(importer, FalloutImporter):
-            update_grafana(test_name, change_points[test_name], importer.fallout, grafana)
+            update_grafana(test_name, user, change_points[test_name], importer.fallout, grafana)
 
     # TODO: Improve this output
     for test_name, series in perf_tests.items():
@@ -96,13 +96,17 @@ def bulk_analyze_runs(
 
 
 def update_grafana(
-    test_name: str, change_points: List[ChangePointGroup], fallout: Fallout, grafana: Grafana
+    test_name: str,
+    user: Optional[str],
+    change_points: List[ChangePointGroup],
+    fallout: Fallout,
+    grafana: Grafana,
 ):
     logging.info(f"Determining new Grafana annotations for test {test_name}...")
     annotations = []
     for change_point in change_points:
         annotation_text = get_html_from_attributes(
-            test_name=test_name, attributes=change_point.attributes, fallout=fallout
+            test_name=test_name, user=user, attributes=change_point.attributes, fallout=fallout
         )
         for change in change_point.changes:
             matching_dashboard_panels = grafana.find_all_dashboard_panels_displaying(change.metric)

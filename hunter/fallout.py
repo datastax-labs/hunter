@@ -126,8 +126,9 @@ class Fallout:
             user = self.__user
         return [t["name"] for t in self.__api.list_tests(user)]
 
-    def get_test_url(self, test_name: str) -> str:
-        return f"{self.__api.endpoint_url}tests/ui/{self.__user}/{test_name}"
+    def get_test_url(self, test_name: str, user: Optional[str]) -> str:
+        user = user if user is not None else self.__user
+        return f"{self.__api.endpoint_url}tests/ui/{user}/{test_name}"
 
-    def get_test_run_url(self, test_name: str, testrun_id: str) -> str:
-        return f"{self.get_test_url(test_name=test_name)}/{testrun_id}/artifacts"
+    def get_test_run_url(self, test_name: str, user: Optional[str], testrun_id: str) -> str:
+        return f"{self.get_test_url(test_name, user)}/{testrun_id}/artifacts"
