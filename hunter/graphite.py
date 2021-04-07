@@ -100,9 +100,11 @@ class GraphiteEvent:
 
 class Graphite:
     __url: str
+    __url_limit: int  # max URL length used when requesting metrics from Graphite
 
     def __init__(self, conf: GraphiteConfig):
         self.__url = conf.url
+        self.__url_limit = 4094
 
     def fetch_events(
         self,
@@ -185,21 +187,28 @@ class Graphite:
                 metrics = "*"
             from_time = to_graphite_time(selector.since_time, "-365d")
             until_time = to_graphite_time(selector.until_time, "now")
+
+            data_as_json = []
             targets = ""
             for suffix in suffixes:
-                targets += f"target={prefix}.{suffix}.{metrics}&"
-            targets.strip("&")
-
-            url = (
-                f"{self.__url}render"
-                f"?{targets}"
-                f"&format=json"
-                f"&from={from_time}"
-                f"&until={until_time}"
-            )
-
+                url = (
+                    f"{self.__url}render"
+                    f"?{targets.strip('&')}"
+                    f"&format=json"
+                    f"&from={from_time}"
+                    f"&until={until_time}"
+                )
+                new_target = f"target={prefix}.{suffix}.{metrics}&"
+                # if adding new_target overflows URL limit, send request with current targets
+                if len(url) + len(new_target) > self.__url_limit:
+                    data_str = urllib.request.urlopen(url).read()
+                    data_as_json += json.loads(data_str)
+                    targets = ""
+                targets += new_target
+            # request data for remaining targets
             data_str = urllib.request.urlopen(url).read()
-            data_as_json = json.loads(data_str)
+            data_as_json += json.loads(data_str)
+
             for s in data_as_json:
                 series = TimeSeries(name=s["target"], points=decode_graphite_datapoints(s))
                 if len(series.points) > 5:
