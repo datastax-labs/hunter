@@ -68,7 +68,7 @@ def analyze_runs(
 
 def bulk_analyze_runs(
     conf: Config,
-    test_group_file: str,
+    test_group: str,
     user: Optional[str],
     selector: DataSelector,
     analysis_options: AnalysisOptions,
@@ -76,7 +76,7 @@ def bulk_analyze_runs(
 ):
     grafana = Grafana(conf.grafana) if update_grafana_flag else None
 
-    test_group = TestGroup(Path(test_group_file), user)
+    test_group = TestGroup(test_group, user)
     change_points = {}
     perf_tests = {}
     data_import_tests = []
@@ -344,7 +344,7 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     bulk_analyze_parser.add_argument(
-        "test_group", help="path to yaml file that stores list of tests to analyze"
+        "test_group", help="local path or URL to yaml file that stores list of tests to analyze"
     )
     bulk_analyze_parser.add_argument(
         "--update-grafana",

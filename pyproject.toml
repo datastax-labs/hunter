@@ -18,6 +18,7 @@ pystache = "^0.5.4"
 tabulate = "^0.8.7"
 fallout-client = {git = "ssh://git@github.com/riptano/fallout.git"}
 black = "^20.8b1"
+validators = "^0.18.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"

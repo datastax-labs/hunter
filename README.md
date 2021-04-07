@@ -101,7 +101,7 @@ time                         metric1    metric2
 
 ### Analyzing Multiple Tests at Once
 ```
-hunter bulk_analyze <test_group.yaml>  
+hunter bulk_analyze <local path/URL to test_group.yaml>  
 ```
 The provided static test group yaml file should have the following format:
 ```

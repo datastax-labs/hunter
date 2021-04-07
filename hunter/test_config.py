@@ -1,3 +1,6 @@
+import urllib.request
+import validators
+
 from dataclasses import dataclass
 from pathlib import Path
 from ruamel.yaml import YAML
@@ -79,11 +82,11 @@ class TestGroup:
     objects can be a mixed of CsvTestConfig and FalloutTestConfig objects.
     """
 
-    test_group_file: Path
+    test_group_artifact: str
     test_configs: Dict[str, TestConfig]
 
-    def __init__(self, test_group_file: Path, user: Optional[str]):
-        self.test_group_file = test_group_file
+    def __init__(self, test_group_artifact: str, user: Optional[str]):
+        self.test_group_artifact = test_group_artifact
         yaml_content = self._load_yaml()
         self.test_configs = {}
         for test_info in yaml_content:
@@ -95,10 +98,13 @@ class TestGroup:
 
     def _load_yaml(self) -> List[Dict[str, str]]:
         try:
-            content = self.test_group_file.read_text()
+            if validators.url(self.test_group_artifact):
+                content = urllib.request.urlopen(self.test_group_artifact).read()
+            else:
+                content = Path(self.test_group_artifact).read_text()
             yaml = YAML(typ="safe")
             return yaml.load(content)["tests"]
-        except FileNotFoundError as e:
-            raise TestGroupError(f"Test group file not found: {e.filename}")
+        except IOError as e:
+            raise TestGroupError(f"Test group file/URL not found: {e.filename}")
         except KeyError as e:
             raise TestGroupError(f"Test group file key not found: {e.args[0]}")
