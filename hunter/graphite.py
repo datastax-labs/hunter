@@ -206,6 +206,13 @@ class Graphite:
                     targets = ""
                 targets += new_target
             # request data for remaining targets
+            url = (
+                f"{self.__url}render"
+                f"?{targets.strip('&')}"
+                f"&format=json"
+                f"&from={from_time}"
+                f"&until={until_time}"
+            )
             data_str = urllib.request.urlopen(url).read()
             data_as_json += json.loads(data_str)
 
