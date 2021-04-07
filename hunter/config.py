@@ -27,7 +27,12 @@ def load_config_from(config_file: Path) -> Config:
         content = expandvars(config_file.read_text())
         yaml = YAML(typ="safe")
         config = yaml.load(content)
-        # if Grafana configs not explicitly set in yaml file, default to same as Graphite server at port 3000
+        """
+        if Grafana configs not explicitly set in yaml file, default to same as Graphite 
+        server at port 3000
+        """
+        if config["graphite"]["url"] is None:
+            raise ValueError("graphite.url")
         if config.get("grafana") is None:
             config["gafana"] = {}
             config["grafana"]["url"] = f"{config['graphite']['url'].strip('/')}:3000/"
@@ -61,6 +66,8 @@ def load_config_from(config_file: Path) -> Config:
         raise ConfigError(f"Configuration file not found: {e.filename}")
     except KeyError as e:
         raise ConfigError(f"Configuration key not found: {e.args[0]}")
+    except ValueError as e:
+        raise ConfigError(f"Value for configuration key not found: {e.args[0]}")
 
 
 def load_config() -> Config:
