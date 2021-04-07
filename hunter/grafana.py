@@ -31,25 +31,30 @@ class Annotation:
 class PanelMetric:
     delimiter: str
     target_query: str
+    valid_template_variables: List[str]
+    valid_metric: bool
     parametrized_metric: str
     regex_pattern: str
 
-    def __init__(self, target_query: str):
+    def __init__(self, target_query: str, valid_template_variables: List[str]):
         self.delimiter = "."
         self.target_query = target_query
+        self.valid_template_variables = valid_template_variables
+        self.valid_metric = True
         self.__extract_parametrized_metric()
         self.__create_regex_pattern()
 
     def __extract_parametrized_metric(self):
         """
-        A Grafana target query may involve the composition of several Grafana functions one after the next
-        to a provided (possibly parametrized) metric (+ other arguments at each function application).
-        A relatively extreme example of such:
+        A Grafana target query may involve the composition of several Grafana functions one after
+        the next to a provided (possibly parametrized) metric (+ other arguments at each function
+        application). A relatively extreme example of such:
 
         averageSeriesWithWildcards(
             aliasSub(
                 movingAverage(
-                    performance_regressions.$frequency.$component.$test.$workload.$environment.*.if_octets.rx, 5
+                    performance_regressions.$frequency.$component.$test.$workload.$environment.*.
+                    if_octets.rx, 5
                 ),
                 '.*\..*\.(.*)\..*\..*\..*-rps([^\.]*)\..*', '\1\2'
             ), 3
@@ -57,13 +62,14 @@ class PanelMetric:
 
         To extract out the (parametrized) metric from the target query, we try:
         - restrict to everything before first occurrence of a whitespace
-        - remove any trailing comma (i.e. case that metric + additional arguments passed to some innermost
-         Grafana function)
-        - remove trailing closing parentheses (i.e. case that metric was only argument passed to some innermost
-        Grafana function)
+        - remove any trailing comma (i.e. case that metric + additional arguments passed to some
+        innermost Grafana function)
+        - remove trailing closing parentheses (i.e. case that metric was only argument passed to
+        some innermost Grafana function)
         - get everything after last occurrence of opening parentheses
 
-        NOTE: This may not handle all cases properly, and will probably be subject to further refining/improvements.
+        NOTE: This may not handle all cases properly, and will probably be subject to further
+        refining/improvements.
         """
         self.parametrized_metric = self.target_query.split()[0].strip(",").strip(")").split("(")[-1]
 
@@ -75,7 +81,8 @@ class PanelMetric:
 
         tokens = self.parametrized_metric.split(self.delimiter)
         for token in tokens:
-            # replacing any template variable or wildcard in the graphite query, and the trailing period we split along
+            """replacing any template variable, wildcards, or option in the graphite query,
+            and the trailing period we split along"""
             token = self.__replace_wildcards(token)
             token = self.__replace_template_variables(token)
             token = self.__replace_or_options(token)
@@ -87,14 +94,20 @@ class PanelMetric:
 
     def __replace_template_variables(self, metric_token: str) -> str:
         """
-        Grafana metric queries can use template variables (denoted by $variable_name) as a token in the path, e.g.
+        Grafana metric queries can use template variables (denoted by $variable_name) as a token
+        in the path, e.g.
 
-            performance_regressions.$frequency.$component.$test.$workload.$environment.*.disk_ops.read
+            performance_regressions.$frequency.$component.$test.$workload.$environment.*.
+            disk_ops.read
 
-        This method will replace a templated variable with the regex pattern [^.]+ in a Grafana metric query token.
+        This method will replace a templated variable with the regex pattern [^.]+ in a Grafana
+        metric query token.
         """
         template_variable_index = metric_token.find("$")
         if template_variable_index > -1:
+            template_variable = metric_token[template_variable_index + 1 :]
+            if template_variable not in self.valid_template_variables:
+                self.valid_metric = False
             new_metric_token = f"{metric_token[:template_variable_index]}[^{self.delimiter}]+"
             return new_metric_token
         else:
@@ -105,14 +118,16 @@ class PanelMetric:
         """
         Grafana metric queries can use wildcards either as an entire token in the path, e.g.
 
-            performance_regressions.$frequency.$component.$test.$workload.$environment.*.disk_ops.read
+            performance_regressions.$frequency.$component.$test.$workload.$environment.*.
+            disk_ops.read
 
         or as part of a token, e.g.
 
-            performance_regressions.$frequency.$component.$test.$workload.$environment.server_*.disk_ops.read
+            performance_regressions.$frequency.$component.$test.$workload.$environment.server_*.
+            disk_ops.read
 
-        This helper method will recursively convert all wildcards with the regex pattern [^.]+ in a Grafana
-        metric query token.
+        This helper method will recursively convert all wildcards with the regex pattern [^.]+ in
+        a Grafana metric query token.
         """
         wildcard_index = metric_token.find("*")
         if wildcard_index > -1:
@@ -135,8 +150,8 @@ class PanelMetric:
 
         contains {ParNew,G1_Young_Generation} hared-coded options.
 
-        This helper method searches for this pattern in {option_1, ..., option_N} in a Grafana metric query token,
-        and converts appropriately to regex pattern (option_1|...|option_N).
+        This helper method searches for this pattern in {option_1, ..., option_N} in a Grafana
+        metric query token, and converts appropriately to regex pattern (option_1|...|option_N).
         """
         or_start_index = metric_token.find("{")
         if or_start_index > -1:
@@ -154,13 +169,13 @@ class PanelMetric:
 
     def determine_tags(self, hardcoded_metric: str) -> List[str]:
         """
-        Takes in a hard-coded metric path (i.e. one without any wildcards or variables), and determines all of the
-        tokens in this query that correspond to parametrized variables or wildcards. These will constitute the
-        set of tags that would let us identify which metric (displayed in a particular panel) an annotations
-        corresponds to.
+        Takes in a hard-coded metric path (i.e. one without any wildcards or variables), and
+        determines all of the tokens in this query that correspond to parametrized variables or
+        wildcards. These will constitute the set of tags that would let us identify which metric
+        (displayed in a particular panel) an annotations corresponds to.
 
-        Note that in the case that this class' parametrized_query does not have any variables or wildcards, this will
-        simply return back an empty list.
+        Note that in the case that this class' parametrized_query does not have any variables or
+        wildcards, this will simply return back an empty list.
         """
         hardcoded_metric_query_tokens = hardcoded_metric.split(self.delimiter)
         parametrized_metric_tokens = self.parametrized_metric.split(self.delimiter)
@@ -177,11 +192,13 @@ class PanelMetric:
 class Panel:
     __id: int
     __title: str
+    __parent_dashboard_template_variables = List[str]
     __panel_metrics: Dict[str, PanelMetric]
 
-    def __init__(self, panel_info: dict):
+    def __init__(self, panel_info: dict, parent_dashboard_template_variables: List[str]):
         self.__id = panel_info["id"]
         self.__title = panel_info["title"]
+        self.__parent_dashboard_template_variables = parent_dashboard_template_variables
         self.__initialize_panel_metrics(panel_info["targets"])
 
     def __initialize_panel_metrics(self, targets_info: List[Dict[str, str]]):
@@ -189,7 +206,10 @@ class Panel:
         for target_info in targets_info:
             target_query = target_info.get("target")
             if target_query is not None and len(target_query) > 0:
-                self.__panel_metrics[target_query] = PanelMetric(target_query)
+                self.__panel_metrics[target_query] = PanelMetric(
+                    target_query=target_query,
+                    valid_template_variables=self.__parent_dashboard_template_variables,
+                )
 
     def get_title(self):
         return self.__title
@@ -202,18 +222,25 @@ class Dashboard:
     __uid: str
     __id: int
     __title: str
+    __template_variables = List[str]
     __panels: Dict[int, Panel]
 
     def __init__(self, dashboard_info: dict):
         self.__uid = dashboard_info["uid"]
         self.__id = dashboard_info["id"]
         self.__title = dashboard_info["title"]
+        self.__template_variables = [
+            variable.get("name") for variable in dashboard_info["templating"].get("list")
+        ]
         self.__initialize_panels(dashboard_info)
 
     def __initialize_panels(self, dashboard_info: dict):
         rows_info = dashboard_info.get("rows")
         panels_info = []
-        # the case that the dashboard contains rows, extract panels from each row and concatenate into single list
+        """
+        the case that the dashboard contains rows, extract panels from each row and 
+        concatenate into single list
+        """
         if rows_info is not None:
             for row in rows_info:
                 panels_info += row.get("panels")
@@ -230,7 +257,7 @@ class Dashboard:
         self.__panels = {}
         for panel_info in graph_panels_info:
             panel_id = panel_info["id"]
-            self.__panels[panel_id] = Panel(panel_info)
+            self.__panels[panel_id] = Panel(panel_info, self.__template_variables)
 
     def get_title(self):
         return self.__title
@@ -299,12 +326,13 @@ class Grafana:
             for panel_id, panel in panels.items():
                 panel_metrics = panel.get_panel_metrics()
                 for panel_metric in panel_metrics.values():
-                    regex_pattern = panel_metric.regex_pattern
-                    if re.match(regex_pattern, metric):
-                        tags = panel_metric.determine_tags(metric)
-                        results.append(
-                            {"dashboard id": dashboard_id, "panel id": panel_id, "tags": tags}
-                        )
+                    if panel_metric.valid_metric:
+                        regex_pattern = panel_metric.regex_pattern
+                        if re.match(regex_pattern, metric):
+                            tags = panel_metric.determine_tags(metric)
+                            results.append(
+                                {"dashboard id": dashboard_id, "panel id": panel_id, "tags": tags}
+                            )
         return results
 
     def fetch_matching_annotations(
