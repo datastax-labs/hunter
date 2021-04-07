@@ -79,19 +79,28 @@ def bulk_analyze_runs(
     test_group = TestGroup(Path(test_group_file), user)
     change_points = {}
     perf_tests = {}
+    data_import_tests = []
     for test_name, test_conf in test_group.test_configs.items():
-        importer = get_importer(test_conf=test_conf, conf=conf)
-        series = importer.fetch(test_conf, selector)
-        perf_tests[test_name] = series
-        change_points[test_name] = series.all_change_points(analysis_options)
-        if grafana is not None and isinstance(importer, FalloutImporter):
-            update_grafana(test_name, user, change_points[test_name], importer.fallout, grafana)
+        try:
+            importer = get_importer(test_conf=test_conf, conf=conf)
+            series = importer.fetch(test_conf, selector)
+            perf_tests[test_name] = series
+            change_points[test_name] = series.all_change_points(analysis_options)
+            if grafana is not None and isinstance(importer, FalloutImporter):
+                update_grafana(test_name, user, change_points[test_name], importer.fallout, grafana)
+        except DataImportError as e:
+            logging.error(e.message)
+            data_import_tests.append(test_name)
 
     # TODO: Improve this output
     for test_name, series in perf_tests.items():
-        report = Report(series, change_points[test_name])
-        print(f"\n{test_name}")
-        print(report.format_log_annotated())
+        if test_name not in data_import_tests:
+            report = Report(series, change_points[test_name])
+            print(f"\n{test_name}")
+            print(report.format_log_annotated())
+
+    if len(data_import_tests) > 0:
+        raise DataImportError(f"Failed to import data for: {data_import_tests}")
     exit(0)
 
 
