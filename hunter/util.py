@@ -92,8 +92,11 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def format_timestamp(ts: int) -> str:
-    return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S %z")
+def format_timestamp(ts: int, millisecond_resolution: Optional[bool] = True) -> str:
+    if millisecond_resolution:
+        return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S %z")
+    else:
+        return datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def insert_multiple(col: List[T], new_items: List[T], positions: List[int]) -> List[T]:

@@ -1,9 +1,17 @@
-from hunter.fallout import Fallout
+from datetime import datetime
 from typing import Dict, Optional
+
+from hunter.fallout import Fallout
+from hunter.util import format_timestamp
 
 
 def form_hyperlink_html_str(display_text: str, url: str) -> str:
     return f'<li><a href="{url}" target="_blank">{display_text}</a></li>'
+
+
+def form_created_msg_html_str() -> str:
+    formatted_time = format_timestamp(int(datetime.now().timestamp()), False)
+    return f"<p><i><sub>Created by Hunter: {formatted_time}</sub></i></p>"
 
 
 def get_html_from_attributes(
@@ -43,4 +51,5 @@ def get_html_from_attributes(
         html_str = form_hyperlink_html_str(
             display_text="Fallout test", url=fallout.get_test_url(test_name)
         )
+    html_str += form_created_msg_html_str()
     return html_str
