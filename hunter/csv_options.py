@@ -8,12 +8,10 @@ from typing import Optional
 class CsvOptions:
     delimiter: str
     quote_char: str
-    time_column: Optional[str]
 
     def __init__(self):
         self.delimiter = ","
         self.quote_char = '"'
-        self.time_column = None
 
 
 class CsvColumnType(enum.Enum):

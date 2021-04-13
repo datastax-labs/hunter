@@ -3,55 +3,42 @@ from typing import Dict
 
 import pytz
 
+from hunter.csv_options import CsvOptions
 from hunter.graphite import DataSelector
 from hunter.importer import CsvImporter
 from hunter.test_config import create_test_config, CsvTestConfig
 
 
-def create_test_conf_from_test_info(test_info: Dict) -> CsvTestConfig:
-    """
-    This helper method is implicitly testing the importer.create_test_config method
-    """
-    test_conf = create_test_config(test_info=test_info)
-    assert isinstance(
-        test_conf, CsvTestConfig
-    ), f"Did not properly create a CsvTestConfig from {test_info}"
-    return test_conf
-
-
 def test_import_csv():
-    test_info = {"name": "tests/resources/sample.csv"}
-    test_conf = create_test_conf_from_test_info(test_info=test_info)
-    importer = CsvImporter(options=test_conf.csv_options)
-    test = importer.fetch(test_conf=test_conf)
-    assert len(test.data.keys()) == 2
-    assert len(test.time) == 10
-    assert len(test.data["metric1"]) == 10
-    assert len(test.data["metric2"]) == 10
-    assert len(test.attributes["commit"]) == 10
+    test = CsvTestConfig("test", file="tests/resources/sample.csv")
+    importer = CsvImporter()
+    series = importer.fetch_data(test_conf=test)
+    assert len(series.data.keys()) == 2
+    assert len(series.time) == 10
+    assert len(series.data["metric1"]) == 10
+    assert len(series.data["metric2"]) == 10
+    assert len(series.attributes["commit"]) == 10
 
 
 def test_import_csv_with_metrics_filter():
-    test_info = {"name": "tests/resources/sample.csv"}
-    test_conf = create_test_conf_from_test_info(test_info=test_info)
-    importer = CsvImporter(options=test_conf.csv_options)
+    test_conf = CsvTestConfig("test", file="tests/resources/sample.csv")
+    importer = CsvImporter()
     selector = DataSelector()
     selector.metrics = ["metric2"]
-    test = importer.fetch(test_conf=test_conf, selector=selector)
+    test = importer.fetch_data(test_conf, selector=selector)
     assert len(test.data.keys()) == 1
     assert len(test.time) == 10
     assert len(test.data["metric2"]) == 10
 
 
 def test_import_csv_with_time_filter():
-    test_info = {"name": "tests/resources/sample.csv"}
-    test_conf = create_test_conf_from_test_info(test_info=test_info)
-    importer = CsvImporter(options=test_conf.csv_options)
+    test_conf = CsvTestConfig("test", file="tests/resources/sample.csv")
+    importer = CsvImporter()
     selector = DataSelector()
     tz = pytz.timezone("Etc/GMT+1")
     selector.since_time = datetime(2021, 1, 5, 0, 0, 0, tzinfo=tz)
     selector.until_time = datetime(2021, 1, 7, 0, 0, 0, tzinfo=tz)
-    test = importer.fetch(test_conf=test_conf, selector=selector)
+    test = importer.fetch_data(test_conf, selector=selector)
     assert len(test.data.keys()) == 2
     assert len(test.time) == 2
     assert len(test.data["metric1"]) == 2
@@ -59,13 +46,27 @@ def test_import_csv_with_time_filter():
 
 
 def test_import_csv_with_unix_timestamps():
-    test_info = {"name": "tests/resources/sample.csv", "csv_options": {"time_column": "time"}}
-    test_conf = create_test_conf_from_test_info(test_info=test_info)
-    importer = CsvImporter(options=test_conf.csv_options)
-    test = importer.fetch(test_conf=test_conf)
+    options = CsvOptions()
+    options.time_column = "time"
+    test_conf = CsvTestConfig("test", file="tests/resources/sample.csv", csv_options=options)
+    importer = CsvImporter()
+    test = importer.fetch_data(test_conf=test_conf)
     assert len(test.data.keys()) == 2
     assert len(test.time) == 10
     assert len(test.data["metric1"]) == 10
     assert len(test.data["metric2"]) == 10
     ts = datetime(2021, 1, 1, 2, 0, 0, tzinfo=pytz.UTC).timestamp()
     assert test.time[0] == ts
+
+
+def test_import_csv_semicolon_sep():
+    options = CsvOptions()
+    options.delimiter = ";"
+    importer = CsvImporter()
+    test = CsvTestConfig("test", file="tests/resources/sample-semicolons.csv", csv_options=options)
+    series = importer.fetch_data(test_conf=test)
+    assert len(series.data.keys()) == 2
+    assert len(series.time) == 10
+    assert len(series.data["metric1"]) == 10
+    assert len(series.data["metric2"]) == 10
+    assert len(series.attributes["commit"]) == 10

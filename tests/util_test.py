@@ -45,3 +45,19 @@ def test_sliding_window():
     assert next(iter) == (1, 2, 3)
     assert next(iter) == (2, 3, 4)
     assert next(iter, None) is None
+
+
+def test_merge_dicts():
+    assert merge_dicts({"a": 1}, {"b": 2}) == {"a": 1, "b": 2}
+    assert merge_dicts({"c": 1, "b": 1, "a": 1}, {"b": 2, "a": 2}) == {"c": 1, "b": 2, "a": 2}
+    assert merge_dicts({"a": 1}, {"a": 2}) == {"a": 2}
+    assert merge_dicts({"a": [1, 2]}, {"a": [3]}) == {"a": [1, 2, 3]}
+    assert merge_dicts({"a": {1, 2}}, {"a": {2, 3}}) == {"a": {1, 2, 3}}
+    assert merge_dicts({"a": {"b": [1, 2]}}, {"a": {"b": [3]}}) == {"a": {"b": [1, 2, 3]}}
+
+
+def test_dict_list():
+    d1 = {"a": 1}
+    d2 = {"a": 2}
+    d3 = {"b": 3}
+    assert merge_dict_list([d1, d2, d3]) == {"a": 2, "b": 3}

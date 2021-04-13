@@ -1,11 +1,12 @@
 import datetime
 import math
 import sys
-from collections import deque
+from collections import deque, OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
+from functools import reduce
 from itertools import islice
-from typing import List, TypeVar, Optional
+from typing import List, TypeVar, Optional, Dict, Set
 
 import dateparser
 from pytz import UTC
@@ -163,3 +164,41 @@ def is_datetime(value) -> bool:
         return True
     except DateFormatError:
         return False
+
+
+def merge_dicts(d1: Dict, d2: Dict) -> OrderedDict:
+    """
+    Returns a sum of two dictionaries, summing them left-to-right.
+    Lists and sets under the same key are added.
+    Dicts with the same key are merged recursively.
+    Simple values with the same key are overwritten (right dictionary wins).
+    Maintains the order of the sets.
+    """
+    result = OrderedDict(d1)
+    for k in d2.keys():
+        v1 = d1.get(k)
+        v2 = d2.get(k)
+        if v2 is None:
+            result[k] = v1
+        elif v1 is None:
+            result[k] = v2
+        elif isinstance(v1, Dict) and isinstance(v2, Dict):
+            result[k] = merge_dicts(v1, v2)
+        elif isinstance(v1, List) and isinstance(v2, List):
+            result[k] = v1 + v2
+        elif isinstance(v1, Set) and isinstance(v2, Set):
+            result[k] = v1 | v2
+        else:
+            result[k] = v2
+
+    return result
+
+
+def merge_dict_list(dicts: List[Dict]) -> Dict:
+    """
+    Returns a sum of dictionaries, summing them left-to-right.
+    Lists and sets under the same key are added.
+    Dicts with the same key are merged recursively.
+    Simple values with the same key are overwritten (rightmost dictionary wins).
+    """
+    return reduce(merge_dicts, dicts, {})

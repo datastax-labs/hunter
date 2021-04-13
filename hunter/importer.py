@@ -1,4 +1,5 @@
 import csv
+from collections import OrderedDict
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -6,22 +7,20 @@ from pathlib import Path
 from typing import List, Optional, Dict
 
 from hunter.config import Config
-from hunter.csv import CsvColumnType, CsvOptions
+from hunter.csv_options import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
-from hunter.fallout import Fallout
-from hunter.graphite import DataPoint, Graphite
+from hunter.graphite import DataPoint, Graphite, GraphiteError
 from hunter.series import Series
-from hunter.test_config import CsvTestConfig, FalloutTestConfig, TestConfig
+from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig
 from hunter.util import (
     merge_sorted,
     parse_datetime,
     DateFormatError,
     format_timestamp,
-    is_float,
-    is_datetime,
-    remove_prefix,
     resolution,
     round,
+    is_float,
+    is_datetime,
 )
 
 
@@ -32,153 +31,136 @@ class DataImportError(IOError):
 
 class Importer:
     """
-    The Importer interface is responsible for importing performance metric data + metadata from some specified data
-    source, and creating an appropriate PerformanceLog object from this imported data.
+    An Importer is responsible for importing performance metric data + metadata
+    from some specified data source, and creating an appropriate PerformanceLog object
+    from this imported data.
     """
 
-    def fetch(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
+    def fetch_data(self, test: TestConfig, selector: DataSelector = DataSelector()) -> Series:
         raise NotImplementedError
 
-    def fetch_all_metric_names(self, test_conf: TestConfig) -> List[str]:
+    def fetch_all_metric_names(self, test: TestConfig) -> List[str]:
         raise NotImplementedError
 
 
-class FalloutImporter(Importer):
-    fallout: Fallout
+class GraphiteImporter(Importer):
     graphite: Graphite
 
-    def __init__(self, fallout: Fallout, graphite: Graphite):
-        self.fallout = fallout
+    def __init__(self, graphite: Graphite):
         self.graphite = graphite
 
-    def fetch(
-        self, test_conf: FalloutTestConfig, selector: DataSelector = DataSelector()
-    ) -> Series:
+    def fetch_data(self, test: TestConfig, selector: DataSelector = DataSelector()) -> Series:
         """
-        Loads test data from fallout and graphite.
+        Loads test data from graphite.
         Converts raw timeseries data into a columnar format,
         where each metric is represented by a list of floats. All metrics
         have aligned indexes - that is values["foo"][3] applies to the
         the same time point as values["bar"][3]. The time points are extracted
         to a separate column.
         """
-        user = test_conf.user if test_conf.user is not None else self.fallout.get_user()
-        test_name = test_conf.name
-        test = self.fallout.get_test(test_name, user)
-        # if no suffixes were specified, use all available ones
-        suffixes = (
-            test_conf.suffixes
-            if test_conf.suffixes is not None
-            else self.fetch_all_suffixes(test_conf)
-        )
+        if not isinstance(test, GraphiteTestConfig):
+            raise ValueError("Expected GraphiteTestConfig")
 
-        # if the user has specified since_<commit/version> and/or until_<commit/version>,
-        # we need to attempt to extract a timestamp from appropriate Graphite events, and
-        # update selector.since_time and selector.until_time, respectively
-        since_events = self.graphite.fetch_events_with_matching_time_option(
-            user, test_name, selector.since_commit, selector.since_commit
-        )
-        if len(since_events) > 0:
-            # since timestamps of metrics get rounded down, in order to include these, we need to
-            # - round down the event's pub_time
-            # - subtract a small amount of time (Graphite does not appear to include the left-hand
-            # endpoint for a time range)
-            rounded_time = round(
-                int(since_events[-1].pub_time.timestamp()),
-                resolution([int(since_events[-1].pub_time.timestamp())]),
+        try:
+
+            # if the user has specified since_<commit/version> and/or until_<commit/version>,
+            # we need to attempt to extract a timestamp from appropriate Graphite events, and
+            # update selector.since_time and selector.until_time, respectively
+            since_events = self.graphite.fetch_events_with_matching_time_option(
+                test.tags, selector.since_commit, selector.since_version
             )
-            selector.since_time = parse_datetime(str(rounded_time)) - timedelta(milliseconds=1)
-        until_events = self.graphite.fetch_events_with_matching_time_option(
-            user, test_name, selector.until_commit, selector.until_version
-        )
-        if len(until_events) > 0:
-            selector.until_time = until_events[0].pub_time
+            if len(since_events) > 0:
+                # since timestamps of metrics get rounded down, in order to include these, we need to
+                # - round down the event's pub_time
+                # - subtract a small amount of time (Graphite does not appear to include the left-hand
+                # endpoint for a time range)
+                rounded_time = round(
+                    int(since_events[-1].pub_time.timestamp()),
+                    resolution([int(since_events[-1].pub_time.timestamp())]),
+                )
+                selector.since_time = parse_datetime(str(rounded_time)) - timedelta(milliseconds=1)
 
-        if selector.since_time.timestamp() > selector.until_time.timestamp():
-            raise DataImportError(
-                f"Invalid time range: ["
-                f"{format_timestamp(int(selector.since_time.timestamp()))}, "
-                f"{format_timestamp(int(selector.until_time.timestamp()))}]"
+            until_events = self.graphite.fetch_events_with_matching_time_option(
+                test.tags, selector.until_commit, selector.until_version
             )
+            if len(until_events) > 0:
+                selector.until_time = until_events[0].pub_time
 
-        graphite_result = self.graphite.fetch_data(test.graphite_prefix(), suffixes, selector)
-        if not graphite_result:
-            raise DataImportError(
-                f"No timeseries found in Graphite for test {test_name}. "
-                "You can define which metrics are fetched from Graphite by "
-                "setting the `suffixes` property in the configuration file."
-            )
+            if selector.since_time.timestamp() > selector.until_time.timestamp():
+                raise DataImportError(
+                    f"Invalid time range: ["
+                    f"{format_timestamp(int(selector.since_time.timestamp()))}, "
+                    f"{format_timestamp(int(selector.until_time.timestamp()))}]"
+                )
 
-        times = [[x.time for x in series.points] for series in graphite_result]
-        time: List[int] = merge_sorted(times)
+            metrics = test.metrics.values()
+            if selector.metrics is not None:
+                metrics = [m for m in test.metrics.values() if m.name in selector.metrics]
+            path_to_metric = {test.prefix + "." + m.suffix: m for m in metrics}
+            targets = [test.prefix + "." + m.suffix for m in metrics]
 
-        def column(series: List[DataPoint]) -> List[float]:
-            value_by_time = dict([(x.time, x.value) for x in series])
-            return [value_by_time.get(t) for t in time]
+            graphite_result = self.graphite.fetch_data(targets, selector)
+            if not graphite_result:
+                raise DataImportError(f"No timeseries found in Graphite for test {test.name}.")
 
-        values = {}
-        for ts in graphite_result:
-            values[ts.name] = column(ts.points)
+            times = [[x.time for x in series.points] for series in graphite_result]
+            time: List[int] = merge_sorted(times)
 
-        events = self.graphite.fetch_events(
-            [user, test_name], selector.since_time, selector.until_time
-        )
+            def column(series: List[DataPoint]) -> List[float]:
+                value_by_time = dict([(x.time, x.value) for x in series])
+                return [value_by_time.get(t) for t in time]
 
-        time_resolution = resolution(time)
-        events_by_time = {}
-        for e in events:
-            events_by_time[round(int(e.pub_time.timestamp()), time_resolution)] = e
+            # Keep order of the keys in the result values the same as order of metrics
+            values = OrderedDict()
+            for m in metrics:
+                values[m.name] = []
+            for ts in graphite_result:
+                values[path_to_metric[ts.path].name] = column(ts.points)
 
-        run_ids = []
-        commits = []
-        versions = []
-        branches = []
-        for t in time:
-            event = events_by_time.get(t)
-            run_ids.append(event.run_id if event is not None else None)
-            commits.append(event.commit if event is not None else None)
-            versions.append(event.version if event is not None else None)
-            branches.append(event.branch if event is not None else None)
+            events = self.graphite.fetch_events(test.tags, selector.since_time, selector.until_time)
+            time_resolution = resolution(time)
+            events_by_time = {}
+            for e in events:
+                events_by_time[round(int(e.pub_time.timestamp()), time_resolution)] = e
 
-        tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
-        if selector.attributes is not None:
-            tags = {tag: tags[tag] for tag in selector.attributes}
-        return Series(test_name, time, values, tags)
+            run_ids = []
+            commits = []
+            versions = []
+            branches = []
+            for t in time:
+                event = events_by_time.get(t)
+                run_ids.append(event.run_id if event is not None else None)
+                commits.append(event.commit if event is not None else None)
+                versions.append(event.version if event is not None else None)
+                branches.append(event.branch if event is not None else None)
 
-    def fetch_all_metric_names(self, test_conf: FalloutTestConfig) -> List[str]:
-        test = self.fallout.get_test(test_conf.name, test_conf.user)
-        prefix = test.graphite_prefix()
-        return self.graphite.fetch_metric_paths(prefix)
+            tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
+            if selector.attributes is not None:
+                tags = {tag: tags[tag] for tag in selector.attributes}
+            return Series(test.name, time, values, tags)
 
-    def fetch_all_suffixes(self, test_conf: FalloutTestConfig) -> List[str]:
-        metric_paths = self.fetch_all_metric_names(test_conf)
-        prefix = self.fallout.get_test(test_conf.name, test_conf.user).graphite_prefix()
-        return sorted(
-            list(
-                set([remove_prefix(path, f"{prefix}.").rpartition(".")[0] for path in metric_paths])
-            )
-        )
+        except GraphiteError as e:
+            raise DataImportError(f"Failed to import test {test.name}: {e.message}")
+
+    def fetch_all_metric_names(self, test_conf: GraphiteTestConfig) -> List[str]:
+        return [m for m in test_conf.metrics.keys()]
 
 
 class CsvImporter(Importer):
-
-    __options: CsvOptions
-
-    def __init__(self, options: CsvOptions = CsvOptions()):
-        self.__options = options
-
-    def check_row_len(self, headers, row):
+    @staticmethod
+    def check_row_len(headers, row):
         if len(row) < len(headers):
             raise DataImportError(
                 "Number of values in the row does not match "
                 "number of columns in the table header: " + str(row)
             )
 
-    def check_has_column(self, column: str, headers: List[str]):
+    @staticmethod
+    def check_has_column(column: str, headers: List[str]):
         if column not in headers:
             raise DataImportError("Column not found: " + column)
 
-    def column_types(self, file: Path) -> List[CsvColumnType]:
+    def __column_types(self, file: Path, csv_options: CsvOptions) -> List[CsvColumnType]:
         """
         Guesses data types based on values in the table.
         If all values in the column can be converted to a float, then Numeric type is assumed.
@@ -188,7 +170,7 @@ class CsvImporter(Importer):
         """
         with open(file, newline="") as csv_file:
             reader = csv.reader(
-                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
+                csv_file, delimiter=csv_options.delimiter, quotechar=csv_options.quote_char
             )
             headers: List[str] = next(reader, None)
             types = [CsvColumnType.Numeric] * len(headers)
@@ -202,23 +184,24 @@ class CsvImporter(Importer):
                         types[i] = CsvColumnType.Str
             return types
 
-    def time_column_index(self, headers: List[str], types: List[CsvColumnType]) -> int:
+    def __time_column_index(
+        self, time_column: str, headers: List[str], types: List[CsvColumnType]
+    ) -> int:
         """
         Returns the index of the time column. If time column name is given in the CsvOptions,
         then it is looked up. Otherwise the first column with DateTime type will be used.
         """
-        if self.__options.time_column is None:
+        if time_column is None:
             datetime_indexes = (i for i, t in enumerate(types) if t == CsvColumnType.DateTime)
             time_index = next(datetime_indexes, None)
             if time_index is None:
                 raise DataImportError("No time column found")
             return time_index
         else:
-            time_column = self.__options.time_column
             self.check_has_column(time_column, headers)
             return headers.index(time_column)
 
-    def attr_indexes(
+    def __attr_indexes(
         self, attributes: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
     ) -> List[int]:
         if attributes is None:
@@ -232,7 +215,7 @@ class CsvImporter(Importer):
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in attributes]
 
-    def metric_indexes(
+    def __metric_indexes(
         self, metrics: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
     ) -> List[int]:
         if metrics is None:
@@ -242,10 +225,14 @@ class CsvImporter(Importer):
                 self.check_has_column(c, headers)
             return [headers.index(c) for c in metrics]
 
-    def fetch(self, test_conf: CsvTestConfig, selector: DataSelector = DataSelector()) -> Series:
-        file = Path(test_conf.name)
+    def fetch_data(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
+
+        if not isinstance(test_conf, CsvTestConfig):
+            raise ValueError("Expected CsvTestConfig")
+
         since_time = selector.since_time
         until_time = selector.until_time
+        file = Path(test_conf.file)
 
         if since_time.timestamp() > until_time.timestamp():
             raise DataImportError(
@@ -254,97 +241,119 @@ class CsvImporter(Importer):
                 f"{format_timestamp(int(until_time.timestamp()))}]"
             )
 
-        with open(file, newline="") as csv_file:
-            reader = csv.reader(
-                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
-            )
+        try:
+            with open(file, newline="") as csv_file:
+                reader = csv.reader(
+                    csv_file,
+                    delimiter=test_conf.csv_options.delimiter,
+                    quotechar=test_conf.csv_options.quote_char,
+                )
 
-            headers: List[str] = next(reader, None)
-            types: List[CsvColumnType] = self.column_types(file)
+                headers: List[str] = next(reader, None)
+                types: List[CsvColumnType] = self.__column_types(file, test_conf.csv_options)
 
-            # Decide which columns to fetch into which components of the result:
-            time_index: int = self.time_column_index(headers, types)
-            attr_indexes: List[int] = self.attr_indexes(selector.attributes, headers, types)
-            metric_indexes: List[int] = self.metric_indexes(selector.metrics, headers, types)
-            if time_index in attr_indexes:
-                attr_indexes.remove(time_index)
-            if time_index in metric_indexes:
-                metric_indexes.remove(time_index)
+                # Decide which columns to fetch into which components of the result:
+                time_index: int = self.__time_column_index(test_conf.time_column, headers, types)
+                attr_indexes: List[int] = self.__attr_indexes(selector.attributes, headers, types)
+                metric_indexes: List[int] = self.__metric_indexes(selector.metrics, headers, types)
+                if time_index in attr_indexes:
+                    attr_indexes.remove(time_index)
+                if time_index in metric_indexes:
+                    metric_indexes.remove(time_index)
 
-            # Initialize empty lists to store the data and metadata:
-            time: List[int] = []
-            data: Dict[str, List[float]] = {}
-            for i in metric_indexes:
-                data[headers[i]] = []
-            attributes: Dict[str, List[str]] = {}
-            for i in attr_indexes:
-                attributes[headers[i]] = []
-
-            # Append the lists with data from each row:
-            for row in reader:
-                self.check_row_len(headers, row)
-
-                # Filter by time:
-                ts: datetime = self.__convert_time(row[time_index])
-                if since_time is not None and ts < since_time:
-                    continue
-                if until_time is not None and ts >= until_time:
-                    continue
-                time.append(int(ts.timestamp()))
-
-                # Read metric values. Note we can still fail on conversion to float,
-                # because the user is free to override the column selection and thus
-                # they may select a column that contains non-numeric data:
+                # Initialize empty lists to store the data and metadata:
+                time: List[int] = []
+                data: Dict[str, List[float]] = {}
                 for i in metric_indexes:
-                    try:
-                        data[headers[i]].append(float(row[i]))
-                    except ValueError as err:
-                        raise DataImportError(
-                            "Could not convert value in column " + headers[i] + ": " + err.args[0]
-                        )
-
-                # Attributes are just copied as-is, with no conversion:
+                    data[headers[i]] = []
+                attributes: Dict[str, List[str]] = {}
                 for i in attr_indexes:
-                    attributes[headers[i]].append(row[i])
+                    attributes[headers[i]] = []
 
-            return Series(str(file.name), time, data, attributes)
+                # Append the lists with data from each row:
+                for row in reader:
+                    self.check_row_len(headers, row)
+
+                    # Filter by time:
+                    ts: datetime = self.__convert_time(row[time_index])
+                    if since_time is not None and ts < since_time:
+                        continue
+                    if until_time is not None and ts >= until_time:
+                        continue
+                    time.append(int(ts.timestamp()))
+
+                    # Read metric values. Note we can still fail on conversion to float,
+                    # because the user is free to override the column selection and thus
+                    # they may select a column that contains non-numeric data:
+                    for i in metric_indexes:
+                        try:
+                            data[headers[i]].append(float(row[i]))
+                        except ValueError as err:
+                            raise DataImportError(
+                                "Could not convert value in column "
+                                + headers[i]
+                                + ": "
+                                + err.args[0]
+                            )
+
+                    # Attributes are just copied as-is, with no conversion:
+                    for i in attr_indexes:
+                        attributes[headers[i]].append(row[i])
+
+                return Series(str(file.name), time, data, attributes)
+
+        except FileNotFoundError:
+            raise DataImportError(f"Input file not found: {file}")
+
+    @staticmethod
+    def __convert_time(time: str):
+        try:
+            return parse_datetime(time)
+        except DateFormatError as err:
+            raise DataImportError(err.message)
 
     def fetch_all_metric_names(self, test_conf: CsvTestConfig) -> List[str]:
         metrics = []
         file = Path(test_conf.name)
         with open(file, newline="") as csv_file:
             reader = csv.reader(
-                csv_file, delimiter=self.__options.delimiter, quotechar=self.__options.quote_char
+                csv_file,
+                delimiter=test_conf.csv_options.delimiter,
+                quotechar=test_conf.csv_options.quote_char,
             )
 
             headers: List[str] = next(reader, None)
-            types: List[CsvColumnType] = self.column_types(file)
-            metric_indexes = self.metric_indexes(metrics=None, headers=headers, types=types)
+            types: List[CsvColumnType] = self.__column_types(file, test_conf.csv_options)
+            metric_indexes = self.__metric_indexes(metrics=None, headers=headers, types=types)
             for metric_index in metric_indexes:
                 metrics.append(headers[metric_index])
         return metrics
 
-    def __select_columns(self, headers, selector):
-        value_indexes = [
-            i
-            for i in range(len(headers))
-            if headers[i] != self.__options.time_column
-            and (selector.attributes is None or headers[i] not in selector.attributes)
-            and (selector.metrics is None or headers[i] in selector.metrics)
-        ]
-        if len(value_indexes) == 0:
-            raise DataImportError("No metrics found")
-        return value_indexes
 
-    def __convert_time(self, time: str):
-        try:
-            return parse_datetime(time)
-        except DateFormatError as err:
-            raise DataImportError(err.message)
+class Importers:
+    __config: Config
+    __csv_importer: Optional[CsvImporter]
+    __graphite_importer: Optional[GraphiteImporter]
 
+    def __init__(self, config: Config):
+        self.__config = config
+        self.__csv_importer = None
+        self.__graphite_importer = None
 
-def get_importer(test_conf: TestConfig, conf: Config) -> Importer:
-    if isinstance(test_conf, CsvTestConfig):
-        return CsvImporter(options=test_conf.csv_options)
-    if isinstance(test_conf, FalloutTestConfig):
-        return FalloutImporter(fallout=Fallout(conf.fallout), graphite=Graphite(conf.graphite))
+    def csv_importer(self) -> CsvImporter:
+        if self.__csv_importer is None:
+            self.__csv_importer = CsvImporter()
+        return self.__csv_importer
+
+    def graphite_importer(self) -> GraphiteImporter:
+        if self.__graphite_importer is None:
+            self.__graphite_importer = GraphiteImporter(Graphite(self.__config.graphite))
+        return self.__graphite_importer
+
+    def get(self, test: TestConfig) -> Importer:
+        if isinstance(test, CsvTestConfig):
+            return self.csv_importer()
+        elif isinstance(test, GraphiteTestConfig):
+            return self.graphite_importer()
+        else:
+            raise ValueError(f"Unsupported test type {type(test)}")

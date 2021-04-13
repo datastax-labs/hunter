@@ -1,0 +1,103 @@
+# Please place this file in `~/.hunter/hunter.yaml` and provide the missing config values:
+fallout:
+  url: https://fallout.sjc.dsinternal.org/
+  user: ${FALLOUT_USER}
+  token: ${FALLOUT_OAUTH_TOKEN}
+
+graphite:
+  url: http://history.sjc.dsinternal.org/
+  suffixes:
+    - ebdse_read.result
+    - ebdse_write.result
+    - Real_select_trade.ok
+    - Real_insert_trade.ok
+    - nb_bench.main.result-success
+    - stress-insert_standard.st
+    - stress-read_standard-800.st
+
+grafana:
+  url: http://history.datastax.lan:3000/
+  user: ${GRAFANA_USER}
+  password: ${GRAFANA_PASSWORD}
+
+# Templates define common bits shared between test definitions
+templates:
+  common_metrics:
+    metrics:
+      throughput:
+        scale: 1
+        direction: 1
+      p50:
+        scale: 1.0e-6
+        direction: -1
+      p75:
+        scale: 1.0e-6
+        direction: -1
+      p90:
+        scale: 1.0e-6
+        direction: -1
+      p95:
+        scale: 1.0e-6
+        direction: -1
+      p99:
+        scale: 1.0e-6
+        direction: -1
+      max:
+        scale: 1.0e-6
+        direction: -1
+
+  ebdse_write:
+    type: graphite
+    metrics:
+      throughput:
+        suffix: ebdse_write.result-success.throughput
+      p50:
+        suffix: ebdse_write.result-success.p50
+      p75:
+        suffix: ebdse_write.result-success.p75
+      p90:
+        suffix: ebdse_write.result-success.p90
+      p95:
+        suffix: ebdse_write.result-success.p95
+      p99:
+        suffix: ebdse_write.result-success.p99
+      max:
+        suffix: ebdse_write.result-success.max
+
+  sai_visa_write:
+    type: graphite
+    metrics:
+      throughput:
+        suffix: WRITE__writes_.ok.throughput
+      p50:
+        suffix: WRITE__writes_.ok.p50
+      p75:
+        suffix: WRITE__writes_.ok.p75
+      p90:
+        suffix: WRITE__writes_.ok.p90
+      p95:
+        suffix: WRITE__writes_.ok.p95
+      p99:
+        suffix: WRITE__writes_.ok.p99
+      max:
+        suffix: WRITE__writes_.ok.max
+
+tests:
+  dse68.write.rf1:
+    inherit: [common_metrics, ebdse_write]
+    prefix: performance_regressions.daily.dse68.write.throughput.1-bmsmall-rf-1
+
+  dse68.write.rf3:
+    inherit: [common_metrics, ebdse_write]
+    prefix: performance_regressions.daily.dse68.write.throughput.3-bmsmall-rf-3
+
+  dse68.sai-visa.write-nodesync.multi-20k-stcs:
+    inherit: [common_metrics, sai_visa_write]
+    prefix: performance_regressions.daily.dse68.sai-visa.write-nodesync.multi-20k-stcs
+
+
+test_groups:
+  dse68:
+    - dse68.write.rf1
+    - dse68.write.rf3
+    - dse68.sai-visa.write-nodesync.multi-20k-stcs

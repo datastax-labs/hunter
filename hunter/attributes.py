@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
-from hunter.fallout import Fallout
 from hunter.util import format_timestamp
 
 
@@ -14,9 +13,7 @@ def form_created_msg_html_str() -> str:
     return f"<p><i><sub>Created by Hunter: {formatted_time}</sub></i></p>"
 
 
-def get_html_from_attributes(
-    test_name: str, user: Optional[str], attributes: Optional[Dict[str, str]], fallout: Fallout
-) -> str:
+def get_back_links(attributes: Dict[str, str]) -> str:
     """
     This method is responsible for providing an HTML string corresponding to Fallout and GitHub
     links associated to the attributes of a Fallout-based test run.
@@ -24,32 +21,25 @@ def get_html_from_attributes(
     - If no GitHub commit or branch data is provided in the attributes dict, no hyperlink data
     associated to GitHub project repository is provided in the returned HTML.
     """
-    if attributes is not None:
-        # grabbing Fallout test related data
-        if attributes.get("run"):
-            html_str = form_hyperlink_html_str(
-                display_text="Fallout test run",
-                url=fallout.get_test_run_url(test_name, user, attributes.get("run")),
-            )
-        else:
-            html_str = form_hyperlink_html_str(
-                display_text="Fallout test", url=fallout.get_test_url(test_name, user)
-            )
 
-        # grabbing Github project repository related data
-        # TODO: Will we be responsible for handling versioning from repositories aside from bdp?
-        repo_url = "http://github.com/riptano/bdp"
-        if attributes.get("commit"):
-            html_str += form_hyperlink_html_str(
-                display_text="Git commit", url=f"{repo_url}/commit/{attributes.get('commit')}"
-            )
-        elif attributes.get("branch"):
-            html_str += form_hyperlink_html_str(
-                display_text="Git branch", url=f"{repo_url}/tree/{attributes.get('branch')}"
-            )
-    else:
-        html_str = form_hyperlink_html_str(
-            display_text="Fallout test", url=fallout.get_test_url(test_name)
+    # grabbing test runner related data (e.g. Fallout)
+    html_str = ""
+    if attributes.get("test_url"):
+        html_str = form_hyperlink_html_str(display_text="Test", url=attributes.get("test_url"))
+
+    if attributes.get("run_url"):
+        html_str = form_hyperlink_html_str(display_text="Test run", url=attributes.get("run_url"))
+
+    # grabbing Github project repository related data
+    # TODO: Will we be responsible for handling versioning from repositories aside from bdp?
+    repo_url = attributes.get("repo_url", "http://github.com/riptano/bdp")
+    if attributes.get("commit"):
+        html_str += form_hyperlink_html_str(
+            display_text="Git commit", url=f"{repo_url}/commit/{attributes.get('commit')}"
+        )
+    elif attributes.get("branch"):
+        html_str += form_hyperlink_html_str(
+            display_text="Git branch", url=f"{repo_url}/tree/{attributes.get('branch')}"
         )
     html_str += form_created_msg_html_str()
     return html_str

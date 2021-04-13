@@ -1,12 +1,8 @@
-import urllib.request
-import validators
-
+import collections
 from dataclasses import dataclass
-from pathlib import Path
-from ruamel.yaml import YAML
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Set, OrderedDict
 
-from hunter.csv import CsvOptions
+from hunter.csv_options import CsvOptions
 
 
 @dataclass
@@ -21,90 +17,93 @@ class TestConfigError(Exception):
 
 @dataclass
 class CsvTestConfig(TestConfig):
+    file: str
+    time_column: Optional[str]
     csv_options: CsvOptions
 
-    def __init__(self, name: str, csv_options: Optional[CsvOptions] = CsvOptions()):
+    def __init__(
+        self,
+        name: str,
+        file: str,
+        time_column: Optional[str] = None,
+        csv_options: Optional[CsvOptions] = CsvOptions(),
+    ):
         super().__init__(name=name)
+        self.file = file
+        self.time_column = None
         self.csv_options = csv_options
 
 
 @dataclass
-class FalloutTestConfig(TestConfig):
-    user: str
-    suffixes: Optional[List[str]]
-
-    def __init__(self, name: str, user: Optional[str] = None, suffixes: Optional[List[str]] = None):
-        super().__init__(name=name)
-        self.user = user
-        self.suffixes = suffixes
+class GraphiteMetric:
+    name: str
+    direction: int
+    scale: float
+    suffix: str
 
 
-def create_test_config(
-    test_info: Dict, csv_options: Optional[CsvOptions] = CsvOptions(), user: Optional[str] = None
-) -> TestConfig:
+@dataclass
+class GraphiteTestConfig(TestConfig):
+    prefix: str  # location of the data for the main branch
+    metrics: OrderedDict[str, GraphiteMetric]  # collection of metrics to fetch
+    tags: Set[str]  # all these tags must be present on graphite events
+
+    def get_path(self, metric_name: str) -> str:
+        metric = self.metrics.get(metric_name)
+        return self.prefix + "." + metric.suffix
+
+
+def create_test_config(name: str, config: Dict) -> TestConfig:
+    """
+    Loads properties of a test from a dictionary read from hunter's config file
+    This dictionary must have the `type` property to determine the type of the test.
+    Other properties depend on the type.
+    Currently supported test types are `fallout`, `graphite` and `csv`.
+    """
+    test_type = config.get("type")
+    if test_type == "csv":
+        return create_csv_test_config(name, config)
+    elif test_type == "graphite":
+        return create_graphite_test_config(name, config)
+    elif test_type is None:
+        raise TestConfigError(f"Test type not set for test {name}")
+    else:
+        raise TestConfigError(f"Unknown test type {test_type} for test {name}")
+
+
+def create_csv_test_config(name: str, test_info: Dict) -> CsvTestConfig:
+    csv_options = CsvOptions()
     try:
-        test_name = test_info["name"]
-        if test_name.endswith("csv"):
-            return create_csv_test_config(test_info, csv_options)
-        else:
-            return create_fallout_test_config(test_info, user)
+        file = test_info["file"]
     except KeyError as e:
-        raise TestConfigError(f"Test configuration key not found: {e.args[0]}")
-
-
-def create_csv_test_config(test_info: Dict, csv_options: CsvOptions) -> CsvTestConfig:
-    test_name = test_info["name"]
+        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
+    time_column = test_info.get("time_column", "time")
     if test_info.get("csv_options"):
-        csv_options.delimiter = test_info["csv_options"].get("delimiter", csv_options.delimiter)
-        csv_options.quote_char = test_info["csv_options"].get("quote_char", csv_options.quote_char)
-        csv_options.time_column = test_info["csv_options"].get(
-            "time_column", csv_options.time_column
-        )
-    return CsvTestConfig(name=test_name, csv_options=csv_options)
+        csv_options.delimiter = test_info["csv_options"].get("delimiter", ",")
+        csv_options.quote_char = test_info["csv_options"].get("quote_char", '"')
+    return CsvTestConfig(name, file, time_column=time_column, csv_options=csv_options)
 
 
-def create_fallout_test_config(test_info: Dict, user: Optional[str] = None) -> FalloutTestConfig:
-    test_name = test_info["name"]
-    user = test_info.get("user", user)
-    suffixes = test_info.get("suffixes")
-    return FalloutTestConfig(name=test_name, user=user, suffixes=suffixes)
+def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfig:
+    try:
+        metrics_info = test_info["metrics"]
+        if not isinstance(metrics_info, Dict):
+            raise TestConfigError(f"Test {name} metrics field is not a dictionary.")
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
 
+    metrics = collections.OrderedDict()
+    try:
+        for (metric_name, metric_conf) in metrics_info.items():
+            metrics[metric_name] = GraphiteMetric(
+                name=metric_name,
+                suffix=metric_conf["suffix"],
+                direction=int(metric_conf.get("direction", "1")),
+                scale=float(metric_conf.get("scale", "1")),
+            )
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in {name}.metrics: {e.args[0]}")
 
-@dataclass
-class TestGroupError(Exception):
-    message: str
-
-
-@dataclass
-class TestGroup:
-    """
-    Effectively serves as a container for a bunch of TestConfig objects. Note that the contained TestConfig
-    objects can be a mixed of CsvTestConfig and FalloutTestConfig objects.
-    """
-
-    test_group_artifact: str
-    test_configs: Dict[str, TestConfig]
-
-    def __init__(self, test_group_artifact: str, user: Optional[str]):
-        self.test_group_artifact = test_group_artifact
-        yaml_content = self._load_yaml()
-        self.test_configs = {}
-        for test_info in yaml_content:
-            try:
-                test_name = test_info["name"]
-                self.test_configs[test_name] = create_test_config(test_info=test_info, user=user)
-            except KeyError as e:
-                raise TestConfigError(f"Test configuration key not found: {e.args[0]}")
-
-    def _load_yaml(self) -> List[Dict[str, str]]:
-        try:
-            if validators.url(self.test_group_artifact):
-                content = urllib.request.urlopen(self.test_group_artifact).read()
-            else:
-                content = Path(self.test_group_artifact).read_text()
-            yaml = YAML(typ="safe")
-            return yaml.load(content)["tests"]
-        except IOError as e:
-            raise TestGroupError(f"Test group file/URL not found: {e.filename}")
-        except KeyError as e:
-            raise TestGroupError(f"Test group file key not found: {e.args[0]}")
+    return GraphiteTestConfig(
+        name=name, prefix=test_info["prefix"], tags=test_info.get("tags", []), metrics=metrics
+    )

@@ -5,7 +5,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from logging import info, warning
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
 from hunter.data_selector import DataSelector
 from hunter.util import parse_datetime
@@ -14,7 +14,6 @@ from hunter.util import parse_datetime
 @dataclass
 class GraphiteConfig:
     url: str
-    suffixes: List[str]
 
 
 @dataclass
@@ -25,7 +24,7 @@ class DataPoint:
 
 @dataclass
 class TimeSeries:
-    name: str
+    path: str
     points: List[DataPoint]
 
 
@@ -98,6 +97,32 @@ class GraphiteEvent:
             self.commit = commit
 
 
+def compress_target_paths(paths: List[str]) -> List[str]:
+    """Uses the alternative syntax to reduce the total length of the query"""
+    result = []
+    prefix_map = {}
+    for p in paths:
+        components = p.rsplit(".", 1)
+        if len(components) == 1:
+            result.append(p)
+            continue
+
+        prefix = components[0]
+        suffix = components[1]
+        if prefix not in prefix_map:
+            prefix_map[prefix] = [suffix]
+        else:
+            prefix_map[prefix].append(suffix)
+
+    for prefix, suffixes in prefix_map.items():
+        if len(suffixes) > 1:
+            result.append(prefix + ".{" + ",".join(suffixes) + "}")
+        else:
+            result.append(prefix + "." + suffixes[0])
+
+    return result
+
+
 class Graphite:
     __url: str
     __url_limit: int  # max URL length used when requesting metrics from Graphite
@@ -108,7 +133,7 @@ class Graphite:
 
     def fetch_events(
         self,
-        tags: List[str],
+        tags: Iterable[str],
         from_time: Optional[datetime] = None,
         until_time: Optional[datetime] = None,
     ) -> List[GraphiteEvent]:
@@ -125,10 +150,11 @@ class Graphite:
         try:
             from_time = to_graphite_time(from_time, "-365d")
             until_time = to_graphite_time(until_time, "now")
+            tags_str = "+".join(tags)
 
             url = (
                 f"{self.__url}events/get_data"
-                f"?tags={'+'.join(tags)}"
+                f"?tags={tags_str}"
                 f"&from={from_time}"
                 f"&until={until_time}"
                 f"&set=intersection"
@@ -145,35 +171,17 @@ class Graphite:
             raise GraphiteError(f"Failed to fetch Graphite events: {str(e)}")
 
     def fetch_events_with_matching_time_option(
-        self, fallout_user: str, test_name: str, commit: Optional[str], version: Optional[str]
+        self, tags: Iterable[str], commit: Optional[str], version: Optional[str]
     ) -> List[GraphiteEvent]:
         events = []
         if commit is not None:
-            tags = [fallout_user, test_name]
             events = list(filter(lambda e: e.commit == commit, self.fetch_events(tags)))
-            # the test of interest was not run against commit of interest, we search all tests
-            # to see if any were run against this commit
-            if len(events) == 0:
-                tags = [fallout_user]
-                events = list(
-                    filter(
-                        lambda e: e.commit == commit,
-                        self.fetch_events(tags),
-                    )
-                )
         elif version is not None:
-            tags = [fallout_user, test_name, version]
+            tags = [*tags, version]
             events = self.fetch_events(tags)
-            # the test of interest was not run against the version of interest, we search
-            # all tests to see any were run against this version
-            if len(events) == 0:
-                tags = [fallout_user, version]
-                events = self.fetch_events(tags)
         return events
 
-    def fetch_data(
-        self, prefix: str, suffixes: List[str], selector: DataSelector
-    ) -> List[TimeSeries]:
+    def fetch_data(self, target_paths: List[str], selector: DataSelector) -> List[TimeSeries]:
         """
         Connects to Graphite server and downloads interesting series with the
         given prefix. The series to be downloaded are picked from SUFFIXES list.
@@ -181,48 +189,33 @@ class Graphite:
         try:
             info("Fetching data from Graphite...")
             result = []
-            if selector.metrics is not None:
-                metrics = "{" + ",".join(selector.metrics) + "}"
-            else:
-                metrics = "*"
+
             from_time = to_graphite_time(selector.since_time, "-365d")
             until_time = to_graphite_time(selector.until_time, "now")
-
-            data_as_json = []
+            target_paths = compress_target_paths(target_paths)
             targets = ""
-            for suffix in suffixes:
-                url = (
-                    f"{self.__url}render"
-                    f"?{targets.strip('&')}"
-                    f"&format=json"
-                    f"&from={from_time}"
-                    f"&until={until_time}"
-                )
-                new_target = f"target={prefix}.{suffix}.{metrics}&"
-                # if adding new_target overflows URL limit, send request with current targets
-                if len(url) + len(new_target) > self.__url_limit:
-                    data_str = urllib.request.urlopen(url).read()
-                    data_as_json += json.loads(data_str)
-                    targets = ""
-                targets += new_target
-            # request data for remaining targets
+            for path in target_paths:
+                targets += f"target={path}&"
+            targets = targets.strip("&")
+
             url = (
                 f"{self.__url}render"
-                f"?{targets.strip('&')}"
+                f"?{targets}"
                 f"&format=json"
                 f"&from={from_time}"
                 f"&until={until_time}"
             )
+
             data_str = urllib.request.urlopen(url).read()
-            data_as_json += json.loads(data_str)
+            data_as_json = json.loads(data_str)
 
             for s in data_as_json:
-                series = TimeSeries(name=s["target"], points=decode_graphite_datapoints(s))
+                series = TimeSeries(path=s["target"], points=decode_graphite_datapoints(s))
                 if len(series.points) > 5:
                     result.append(series)
                 else:
                     warning(
-                        f"Not enough data points in series {series.name}. "
+                        f"Not enough data points in series {series.path}. "
                         f"Required at least 5 points."
                     )
 
