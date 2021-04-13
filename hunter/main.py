@@ -80,7 +80,7 @@ class Hunter:
     ) -> List[ChangePointGroup]:
         importer = self.__importers.get(test)
         series = importer.fetch_data(test, selector)
-        change_points = series.all_change_points(options)
+        change_points = series.analyze(options).change_points_by_time
         report = Report(series, change_points)
         print(test.name + ":")
         print(report.format_log_annotated())

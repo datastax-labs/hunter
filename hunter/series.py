@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
 from hunter.analysis import (
     fill_missing,
@@ -88,53 +88,74 @@ class Series:
             result[k] = v[index]
         return result
 
-    def change_points(
-        self, metric: str, options: AnalysisOptions = AnalysisOptions()
-    ) -> List[ChangePoint]:
+    def analyze(self, options: AnalysisOptions = AnalysisOptions()) -> "AnalyzedSeries":
+        logging.info(f"Computing change points for test {self.test_name}...")
+        return AnalyzedSeries(self, options)
 
-        values = self.data[metric].copy()
-        fill_missing(values)
-        change_points = compute_change_points(
-            values,
-            window_len=options.window_len,
-            max_pvalue=options.max_pvalue,
-            min_magnitude=options.min_magnitude,
-        )
-        result = []
-        for c in change_points:
-            result.append(
-                ChangePoint(index=c.index, time=self.time[c.index], metric=metric, stats=c.stats)
+
+class AnalyzedSeries:
+    """
+    Time series data with computed change points.
+    """
+
+    __series: Series
+    options: AnalysisOptions
+    change_points: Dict[str, List[ChangePoint]]
+    change_points_by_time: List[ChangePointGroup]
+
+    def __init__(self, series: Series, options: AnalysisOptions):
+        self.__series = series
+        self.options = options
+        self.change_points = self.__compute_change_points(series, options)
+        self.change_points_by_time = self.__group_change_points_by_time(series, self.change_points)
+
+    @staticmethod
+    def __compute_change_points(
+        series: Series, options: AnalysisOptions
+    ) -> Dict[str, List[ChangePoint]]:
+        result = {}
+        for metric in series.data.keys():
+            values = series.data[metric].copy()
+            fill_missing(values)
+            change_points = compute_change_points(
+                values,
+                window_len=options.window_len,
+                max_pvalue=options.max_pvalue,
+                min_magnitude=options.min_magnitude,
             )
+            result[metric] = []
+            for c in change_points:
+                result[metric].append(
+                    ChangePoint(
+                        index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                    )
+                )
         return result
 
-    def all_change_points(
-        self, options: AnalysisOptions = AnalysisOptions()
+    @staticmethod
+    def __group_change_points_by_time(
+        series: Series, change_points: Dict[str, List[ChangePoint]]
     ) -> List[ChangePointGroup]:
-
-        if len(self.time) == 0:
-            return []
-
-        logging.info(f"Computing change points for test {self.test_name}...")
         changes: List[ChangePoint] = []
-        for metric in self.data.keys():
-            changes += self.change_points(metric, options)
+        for metric in change_points.keys():
+            changes += change_points[metric]
 
         changes.sort(key=lambda c: c.index)
         points = []
         for k, g in groupby(changes, key=lambda c: c.index):
             cp = ChangePointGroup(
                 index=k,
-                time=self.time[k],
-                prev_time=self.time[k - 1],
-                attributes=self.attributes_at(k),
-                prev_attributes=self.attributes_at(k - 1),
+                time=series.time[k],
+                prev_time=series.time[k - 1],
+                attributes=series.attributes_at(k),
+                prev_attributes=series.attributes_at(k - 1),
                 changes=list(g),
             )
             points.append(cp)
 
         return points
 
-    def get_stable_range(self, index: int, change_points: List[ChangePoint]) -> (int, int):
+    def get_stable_range(self, metric: str, index: int) -> (int, int):
         """
         Returns a range of indexes (A, B) such that:
           - A is the nearest change point index of the `metric` before or equal given `index`,
@@ -145,53 +166,68 @@ class Series:
         It follows that there are no change points between A and B.
         """
         begin = 0
-        for cp in change_points:
+        for cp in self.change_points[metric]:
             if cp.index > index:
                 break
             begin = cp.index
 
-        end = len(self.time)
-        for cp in reversed(change_points):
+        end = len(self.time())
+        for cp in reversed(self.change_points[metric]):
             if cp.index <= index:
                 break
             end = cp.index
 
         return begin, end
 
+    def test_name(self):
+        return self.__series.test_name
+
+    def time(self) -> List[int]:
+        return self.__series.time
+
+    def data(self, metric: str) -> List[float]:
+        return self.__series.data[metric]
+
+    def attributes(self) -> Iterable[str]:
+        return self.__series.attributes.keys()
+
+    def attribute_values(self, attribute: str) -> List[str]:
+        return self.__series.attributes[attribute]
+
+    def metrics(self) -> Iterable[str]:
+        return self.__series.data.keys()
+
 
 @dataclass
 class SeriesComparison:
-    series_1: Series
-    series_2: Series
+    series_1: AnalyzedSeries
+    series_2: AnalyzedSeries
     index_1: int
     index_2: int
     stats: Dict[str, ComparativeStats]  # keys: metric name
 
 
 def compare(
-    series_1: Series,
+    series_1: AnalyzedSeries,
     index_1: Optional[int],
-    series_2: Series,
+    series_2: AnalyzedSeries,
     index_2: Optional[int],
-    options: AnalysisOptions = AnalysisOptions(),
 ) -> SeriesComparison:
 
     # if index not specified, we want to take the most recent performance
-    index_1 = index_1 if index_1 is not None else len(series_1.time)
-    index_2 = index_2 if index_2 is not None else len(series_2.time)
-    metrics = set(series_1.data.keys()).intersection(series_2.data.keys())
+    index_1 = index_1 if index_1 is not None else len(series_1.time())
+    index_2 = index_2 if index_2 is not None else len(series_2.time())
+    metrics = set(series_1.metrics()).intersection(series_2.metrics())
 
-    tester = TTestSignificanceTester(options.max_pvalue)
+    tester = TTestSignificanceTester(series_1.options.max_pvalue)
     stats = {}
 
     for metric in metrics:
-        change_points_1 = series_1.change_points(metric, options)
-        (begin_1, end_1) = series_1.get_stable_range(index_1, change_points_1)
-        data_1 = series_1.data[metric][begin_1:end_1]
+        (begin_1, end_1) = series_1.get_stable_range(metric, index_1)
+        data_1 = series_1.data(metric)[begin_1:end_1]
 
-        change_points_2 = series_2.change_points(metric, options)
-        (begin_2, end_2) = series_2.get_stable_range(index_2, change_points_2)
-        data_2 = series_2.data[metric][begin_2:end_2]
+        (begin_2, end_2) = series_2.get_stable_range(metric, index_2)
+        data_2 = series_2.data(metric)[begin_2:end_2]
 
         stats[metric] = tester.compare(np.array(data_1), np.array(data_2))
 

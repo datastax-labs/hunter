@@ -7,7 +7,7 @@ def test_report():
     series2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
     time = list(range(len(series1)))
     test = Series("test", time, {"series1": series1, "series2": series2}, {})
-    changepoints = test.all_change_points()
+    changepoints = test.analyze().change_points_by_time
     report = Report(test, changepoints)
     output = report.format_log_annotated()
     assert "series1" in output
