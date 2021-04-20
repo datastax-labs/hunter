@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, List, Optional, Iterable, OrderedDict
 
 from hunter.analysis import (
     fill_missing,
@@ -23,6 +23,18 @@ class AnalysisOptions:
         self.window_len = 50
         self.max_pvalue = 0.001
         self.min_magnitude = 0.0
+
+
+@dataclass
+class Metric:
+    direction: int
+    scale: float
+    unit: str
+
+    def __init__(self, direction: int = 1, scale: float = 1.0, unit: str = ""):
+        self.direction = direction
+        self.scale = scale
+        self.unit = ""
 
 
 @dataclass
@@ -65,6 +77,7 @@ class Series:
 
     test_name: str
     time: List[int]
+    metrics: Dict[str, Metric]
     attributes: Dict[str, List[str]]
     data: Dict[str, List[float]]
 
@@ -72,15 +85,17 @@ class Series:
         self,
         test_name: str,
         time: List[int],
+        metrics: Dict[str, Metric],
         data: Dict[str, List[float]],
-        metadata: Dict[str, List[str]],
+        attributes: Dict[str, List[str]],
     ):
         self.test_name = test_name
         self.time = time
-        self.attributes = metadata
+        self.metrics = metrics
+        self.attributes = attributes if attributes else {}
         self.data = data
         assert all(len(x) == len(time) for x in data.values())
-        assert all(len(x) == len(time) for x in metadata.values())
+        assert all(len(x) == len(time) for x in attributes.values())
 
     def attributes_at(self, index: int) -> Dict[str, str]:
         result = {}
@@ -194,8 +209,11 @@ class AnalyzedSeries:
     def attribute_values(self, attribute: str) -> List[str]:
         return self.__series.attributes[attribute]
 
-    def metrics(self) -> Iterable[str]:
-        return self.__series.data.keys()
+    def metric_names(self) -> Iterable[str]:
+        return self.__series.metrics.keys()
+
+    def metric(self, name: str) -> Metric:
+        return self.__series.metrics[name]
 
 
 @dataclass
@@ -217,7 +235,7 @@ def compare(
     # if index not specified, we want to take the most recent performance
     index_1 = index_1 if index_1 is not None else len(series_1.time())
     index_2 = index_2 if index_2 is not None else len(series_2.time())
-    metrics = set(series_1.metrics()).intersection(series_2.metrics())
+    metrics = set(series_1.metric_names()).intersection(series_2.metric_names())
 
     tester = TTestSignificanceTester(series_1.options.max_pvalue)
     stats = {}

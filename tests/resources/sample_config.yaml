@@ -83,6 +83,26 @@ templates:
         suffix: WRITE__writes_.ok.max
 
 tests:
+  local_1:
+    type: csv
+    file: tests/resources/sample.csv
+    time_column: time
+    metrics: [metric1, metric2]
+    attributes: [commit]
+
+  local_2:
+    type: csv
+    file: tests/resources/sample.csv
+    time_column: time
+    metrics:
+      m1:
+        column: metric1
+        direction: 1
+      m2:
+        column: metric2
+        direction: -1
+    attributes: [ commit ]
+
   dse68.write.rf1:
     inherit: [common_metrics, ebdse_write]
     prefix: performance_regressions.daily.dse68.write.throughput.1-bmsmall-rf-1

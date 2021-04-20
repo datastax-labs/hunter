@@ -1,6 +1,6 @@
 import json
 
-from hunter.series import Series
+from hunter.series import Series, Metric
 from hunter.slack import SlackNotification
 
 
@@ -42,7 +42,13 @@ def test_blocks_dispatch():
         1.58,
     ]
     time = list(range(len(series1)))
-    test = Series("test", time, {"series1": series1, "series2": series2}, {})
+    test = Series(
+        "test",
+        time,
+        metrics={"series1": Metric(), "series2": Metric()},
+        data={"series1": series1, "series2": series2},
+        attributes={},
+    )
     changepoints = test.analyze().change_points_by_time
     dispatches = SlackNotification(change_point_groups={"test": changepoints}).create_dispatches()
     assert len(dispatches) == 1, "Unexpected number of Slack messages created"

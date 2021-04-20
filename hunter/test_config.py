@@ -1,6 +1,6 @@
 import collections
 from dataclasses import dataclass
-from typing import Dict, Optional, List, Set, OrderedDict
+from typing import Dict, List, Set
 
 from hunter.csv_options import CsvOptions
 
@@ -16,22 +16,36 @@ class TestConfigError(Exception):
 
 
 @dataclass
+class CsvMetric:
+    name: str
+    direction: int
+    scale: float
+    column: str
+
+
+@dataclass
 class CsvTestConfig(TestConfig):
     file: str
-    time_column: Optional[str]
     csv_options: CsvOptions
+    time_column: str
+    metrics: Dict[str, CsvMetric]
+    attributes: List[str]
 
     def __init__(
         self,
         name: str,
         file: str,
-        time_column: Optional[str] = None,
-        csv_options: Optional[CsvOptions] = CsvOptions(),
+        csv_options: CsvOptions = CsvOptions(),
+        time_column: str = "time",
+        metrics: List[CsvMetric] = None,
+        attributes: List[str] = None,
     ):
-        super().__init__(name=name)
+        self.name = name
         self.file = file
-        self.time_column = None
         self.csv_options = csv_options
+        self.time_column = time_column
+        self.metrics = {m.name: m for m in metrics} if metrics else {}
+        self.attributes = attributes if attributes else {}
 
 
 @dataclass
@@ -45,8 +59,14 @@ class GraphiteMetric:
 @dataclass
 class GraphiteTestConfig(TestConfig):
     prefix: str  # location of the data for the main branch
-    metrics: OrderedDict[str, GraphiteMetric]  # collection of metrics to fetch
+    metrics: Dict[str, GraphiteMetric]  # collection of metrics to fetch
     tags: Set[str]  # all these tags must be present on graphite events
+
+    def __init__(self, name: str, prefix: str, metrics: List[GraphiteMetric], tags: Set[str]):
+        self.name = name
+        self.prefix = prefix
+        self.metrics = {m.name: m for m in metrics}
+        self.tags = tags
 
     def get_path(self, metric_name: str) -> str:
         metric = self.metrics.get(metric_name)
@@ -78,10 +98,39 @@ def create_csv_test_config(name: str, test_info: Dict) -> CsvTestConfig:
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
     time_column = test_info.get("time_column", "time")
+    metrics_info = test_info.get("metrics")
+    metrics = []
+    if isinstance(metrics_info, List):
+        for name in metrics_info:
+            metrics.append(CsvMetric(name, 1, 1.0, name))
+    elif isinstance(metrics_info, Dict):
+        for (metric_name, metric_conf) in metrics_info.items():
+            metrics.append(
+                CsvMetric(
+                    name=metric_name,
+                    column=metric_conf.get("column", metric_name),
+                    direction=int(metric_conf.get("direction", "1")),
+                    scale=float(metric_conf.get("scale", "1")),
+                )
+            )
+    else:
+        raise TestConfigError(f"Metrics of the test {name} must be a list or dictionary")
+
+    attributes = test_info.get("attributes", [])
+    if not isinstance(attributes, List):
+        raise TestConfigError(f"Attributes of the test {name} must be a list")
+
     if test_info.get("csv_options"):
         csv_options.delimiter = test_info["csv_options"].get("delimiter", ",")
         csv_options.quote_char = test_info["csv_options"].get("quote_char", '"')
-    return CsvTestConfig(name, file, time_column=time_column, csv_options=csv_options)
+    return CsvTestConfig(
+        name,
+        file,
+        csv_options=csv_options,
+        time_column=time_column,
+        metrics=metrics,
+        attributes=test_info.get("attributes"),
+    )
 
 
 def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfig:
@@ -92,18 +141,20 @@ def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfi
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
 
-    metrics = collections.OrderedDict()
+    metrics = []
     try:
         for (metric_name, metric_conf) in metrics_info.items():
-            metrics[metric_name] = GraphiteMetric(
-                name=metric_name,
-                suffix=metric_conf["suffix"],
-                direction=int(metric_conf.get("direction", "1")),
-                scale=float(metric_conf.get("scale", "1")),
+            metrics.append(
+                GraphiteMetric(
+                    name=metric_name,
+                    suffix=metric_conf["suffix"],
+                    direction=int(metric_conf.get("direction", "1")),
+                    scale=float(metric_conf.get("scale", "1")),
+                )
             )
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in {name}.metrics: {e.args[0]}")
 
     return GraphiteTestConfig(
-        name=name, prefix=test_info["prefix"], tags=test_info.get("tags", []), metrics=metrics
+        name, prefix=test_info["prefix"], tags=test_info.get("tags", []), metrics=metrics
     )

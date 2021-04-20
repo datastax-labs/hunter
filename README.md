@@ -54,6 +54,8 @@ tests:
     type: csv
     file: tests/resources/sample.csv
     time_column: time
+    metrics: [metric1, metric2]
+    attributes: [commit]
     csv_options:
       delimiter: ","
       quote_char: "'"      
@@ -61,6 +63,26 @@ tests:
 
 The `time_column` property points to the name of the column storing the timestamp
 of each test-run. The data points will be ordered by that column.
+
+The `metrics` property selects the columns tha hold the values to be analyzed. These values must
+be numbers convertible to floats. The `metrics` property can be not only a simple list of column 
+names, but it can also be a dictionary configuring other properties of each metric, 
+the column name or direction:
+
+```yaml
+metrics: 
+  resp_time_p99:
+    direction: -1
+    column: p99
+```
+
+Direction can be 1 or -1. If direction is set to 1, this means that the higher the metric, the
+better the performance is. If it is set to -1, higher values mean worse performance.
+
+The `attributes` property describes any other columns that should be attached to the final 
+report. Special attribute `version` and `commit` can be used to query for a given time-range.
+
+
 
 #### Importing results from Graphite
 

@@ -10,8 +10,8 @@ from hunter.config import Config
 from hunter.csv_options import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
-from hunter.series import Series
-from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig
+from hunter.series import Series, Metric
+from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig, CsvMetric
 from hunter.util import (
     merge_sorted,
     parse_datetime,
@@ -137,7 +137,9 @@ class GraphiteImporter(Importer):
             tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
             if selector.attributes is not None:
                 tags = {tag: tags[tag] for tag in selector.attributes}
-            return Series(test.name, time, values, tags)
+
+            metrics = {m.name: Metric(m.direction, m.scale) for m in metrics}
+            return Series(test.name, time, metrics, values, tags)
 
         except GraphiteError as e:
             raise DataImportError(f"Failed to import test {test.name}: {e.message}")
@@ -160,70 +162,15 @@ class CsvImporter(Importer):
         if column not in headers:
             raise DataImportError("Column not found: " + column)
 
-    def __column_types(self, file: Path, csv_options: CsvOptions) -> List[CsvColumnType]:
-        """
-        Guesses data types based on values in the table.
-        If all values in the column can be converted to a float, then Numeric type is assumed.
-        If some values cannot be converted to a float, then an attempt is made to parse them
-        as datetime objects. If some of the values are neither float or datetime, then the
-        column is assumed to contain strings.
-        """
-        with open(file, newline="") as csv_file:
-            reader = csv.reader(
-                csv_file, delimiter=csv_options.delimiter, quotechar=csv_options.quote_char
-            )
-            headers: List[str] = next(reader, None)
-            types = [CsvColumnType.Numeric] * len(headers)
+    @staticmethod
+    def __selected_metrics(
+        defined_metrics: Dict[str, CsvMetric], selected_metrics: Optional[List[str]]
+    ) -> Dict[str, CsvMetric]:
 
-            for row in reader:
-                self.check_row_len(headers, row)
-                for i in range(len(types)):
-                    if types[i] == CsvColumnType.Numeric and not is_float(row[i]):
-                        types[i] = CsvColumnType.DateTime
-                    if types[i] == CsvColumnType.DateTime and not is_datetime(row[i]):
-                        types[i] = CsvColumnType.Str
-            return types
-
-    def __time_column_index(
-        self, time_column: str, headers: List[str], types: List[CsvColumnType]
-    ) -> int:
-        """
-        Returns the index of the time column. If time column name is given in the CsvOptions,
-        then it is looked up. Otherwise the first column with DateTime type will be used.
-        """
-        if time_column is None:
-            datetime_indexes = (i for i, t in enumerate(types) if t == CsvColumnType.DateTime)
-            time_index = next(datetime_indexes, None)
-            if time_index is None:
-                raise DataImportError("No time column found")
-            return time_index
+        if selected_metrics is not None:
+            return {name: defined_metrics[name] for name in selected_metrics}
         else:
-            self.check_has_column(time_column, headers)
-            return headers.index(time_column)
-
-    def __attr_indexes(
-        self, attributes: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
-    ) -> List[int]:
-        if attributes is None:
-            return [
-                i
-                for i, t in enumerate(types)
-                if t == CsvColumnType.Str or t == CsvColumnType.DateTime
-            ]
-        else:
-            for c in attributes:
-                self.check_has_column(c, headers)
-            return [headers.index(c) for c in attributes]
-
-    def __metric_indexes(
-        self, metrics: Optional[List[str]], headers: List[str], types: List[CsvColumnType]
-    ) -> List[int]:
-        if metrics is None:
-            return [i for i, t in enumerate(types) if t == CsvColumnType.Numeric]
-        else:
-            for c in metrics:
-                self.check_has_column(c, headers)
-            return [headers.index(c) for c in metrics]
+            return defined_metrics
 
     def fetch_data(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
 
@@ -250,12 +197,18 @@ class CsvImporter(Importer):
                 )
 
                 headers: List[str] = next(reader, None)
-                types: List[CsvColumnType] = self.__column_types(file, test_conf.csv_options)
+                metrics = self.__selected_metrics(test_conf.metrics, selector.metrics)
 
                 # Decide which columns to fetch into which components of the result:
-                time_index: int = self.__time_column_index(test_conf.time_column, headers, types)
-                attr_indexes: List[int] = self.__attr_indexes(selector.attributes, headers, types)
-                metric_indexes: List[int] = self.__metric_indexes(selector.metrics, headers, types)
+                try:
+                    time_index: int = headers.index(test_conf.time_column)
+                    attr_indexes: List[int] = [headers.index(c) for c in test_conf.attributes]
+                    metric_names = [m.name for m in metrics.values()]
+                    metric_columns = [m.column for m in metrics.values()]
+                    metric_indexes: List[int] = [headers.index(c) for c in metric_columns]
+                except ValueError as err:
+                    raise DataImportError(f"Column not found {err.args[0]}")
+
                 if time_index in attr_indexes:
                     attr_indexes.remove(time_index)
                 if time_index in metric_indexes:
@@ -264,8 +217,8 @@ class CsvImporter(Importer):
                 # Initialize empty lists to store the data and metadata:
                 time: List[int] = []
                 data: Dict[str, List[float]] = {}
-                for i in metric_indexes:
-                    data[headers[i]] = []
+                for n in metric_names:
+                    data[n] = []
                 attributes: Dict[str, List[str]] = {}
                 for i in attr_indexes:
                     attributes[headers[i]] = []
@@ -285,9 +238,9 @@ class CsvImporter(Importer):
                     # Read metric values. Note we can still fail on conversion to float,
                     # because the user is free to override the column selection and thus
                     # they may select a column that contains non-numeric data:
-                    for i in metric_indexes:
+                    for (name, i) in zip(metric_names, metric_indexes):
                         try:
-                            data[headers[i]].append(float(row[i]))
+                            data[name].append(float(row[i]))
                         except ValueError as err:
                             raise DataImportError(
                                 "Could not convert value in column "
@@ -300,7 +253,9 @@ class CsvImporter(Importer):
                     for i in attr_indexes:
                         attributes[headers[i]].append(row[i])
 
-                return Series(str(file.name), time, data, attributes)
+                # Convert metrics to series.Metrics
+                metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
+                return Series(str(file.name), time, metrics, data, attributes)
 
         except FileNotFoundError:
             raise DataImportError(f"Input file not found: {file}")
@@ -313,21 +268,7 @@ class CsvImporter(Importer):
             raise DataImportError(err.message)
 
     def fetch_all_metric_names(self, test_conf: CsvTestConfig) -> List[str]:
-        metrics = []
-        file = Path(test_conf.name)
-        with open(file, newline="") as csv_file:
-            reader = csv.reader(
-                csv_file,
-                delimiter=test_conf.csv_options.delimiter,
-                quotechar=test_conf.csv_options.quote_char,
-            )
-
-            headers: List[str] = next(reader, None)
-            types: List[CsvColumnType] = self.__column_types(file, test_conf.csv_options)
-            metric_indexes = self.__metric_indexes(metrics=None, headers=headers, types=types)
-            for metric_index in metric_indexes:
-                metrics.append(headers[metric_index])
-        return metrics
+        return [m for m in test_conf.metrics.keys()]
 
 
 class Importers:

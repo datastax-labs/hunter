@@ -1,14 +1,20 @@
 import time
 from random import random
 
-from hunter.series import Series, AnalysisOptions, compare
+from hunter.series import Series, AnalysisOptions, compare, Metric
 
 
 def test_change_point_detection():
-    series1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
-    series2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
-    time = list(range(len(series1)))
-    test = Series("test", time, {"series1": series1, "series2": series2}, {})
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
 
     change_points = test.analyze().change_points_by_time
     assert len(change_points) == 2
@@ -19,10 +25,16 @@ def test_change_point_detection():
 
 
 def test_change_point_min_magnitude():
-    series1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
-    series2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
-    time = list(range(len(series1)))
-    test = Series("test", time, {"series1": series1, "series2": series2}, {})
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
 
     options = AnalysisOptions()
     options.min_magnitude = 0.2
@@ -44,7 +56,13 @@ def test_change_point_detection_performance():
 
     start_time = time.process_time()
     for run in range(0, 10):  # 10 series
-        test = Series("test", list(timestamps), {"series": series}, {})
+        test = Series(
+            "test",
+            time=list(timestamps),
+            metrics={"series": Metric(1, 1.0)},
+            data={"series": series},
+            attributes={},
+        )
         test.analyze()
     end_time = time.process_time()
     assert (end_time - start_time) < 0.5
@@ -54,7 +72,13 @@ def test_get_stable_range():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
     series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
     time = list(range(len(series_1)))
-    test = Series("test", time, {"series1": series_1, "series2": series_2}, {}).analyze()
+    test = Series(
+        "test",
+        time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    ).analyze()
 
     assert test.get_stable_range("series1", 0) == (0, 6)
     assert test.get_stable_range("series1", 1) == (0, 6)
@@ -72,8 +96,8 @@ def test_compare():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.04, 1.02, 0.50, 0.51, 0.48, 0.48, 0.53]
     series_2 = [2.02, 2.03, 2.01, 2.04, 0.51, 0.49, 0.51, 0.49, 0.48, 0.52, 0.50]
     time = list(range(len(series_1)))
-    test_1 = Series("test_1", time, {"data": series_1}, {}).analyze()
-    test_2 = Series("test_2", time, {"data": series_2}, {}).analyze()
+    test_1 = Series("test_1", time, {"data": Metric()}, {"data": series_1}, {}).analyze()
+    test_2 = Series("test_2", time, {"data": Metric()}, {"data": series_2}, {}).analyze()
 
     stats = compare(test_1, None, test_2, None).stats["data"]
     assert stats.pvalue > 0.5  # tails are almost the same
@@ -96,9 +120,11 @@ def test_compare_single_point():
     series_2 = [0.51]
     series_3 = [0.99]
 
-    test_1 = Series("test_1", list(range(len(series_1))), {"data": series_1}, {}).analyze()
-    test_2 = Series("test_2", [1], {"data": series_2}, {}).analyze()
-    test_3 = Series("test_3", [1], {"data": series_3}, {}).analyze()
+    test_1 = Series(
+        "test_1", list(range(len(series_1))), {"data": Metric()}, {"data": series_1}, {}
+    ).analyze()
+    test_2 = Series("test_2", [1], {"data": Metric()}, {"data": series_2}, {}).analyze()
+    test_3 = Series("test_3", [1], {"data": Metric()}, {"data": series_3}, {}).analyze()
 
     stats = compare(test_1, None, test_2, None).stats["data"]
     assert stats.pvalue > 0.5
