@@ -1,0 +1,78 @@
+[
+  {
+    "type": "header",
+    "text": {
+      "type": "plain_text",
+      "text": "Hunter has detected change points"
+    }
+  },
+  {
+    "type": "divider"
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*1970-01-01 00:00:04*"
+    }
+  },
+  {
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
+        "text": "*test*"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*series2*: -11.04%\n"
+      }
+    ]
+  },
+  {
+    "type": "divider"
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*1970-01-01 00:00:06*"
+    }
+  },
+  {
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
+        "text": "*test*"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*series1*: -49.43%\n"
+      }
+    ]
+  },
+  {
+    "type": "divider"
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*1970-01-01 00:00:11*"
+    }
+  },
+  {
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
+        "text": "*test*"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*series1*: -49.21%\n*series2*: -14.07%\n"
+      }
+    ]
+  }
+]

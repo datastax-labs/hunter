@@ -1,7 +1,7 @@
 import argparse
 import logging
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Dict, Optional, List
 
 from hunter import config
 from hunter.attributes import get_back_links
@@ -13,6 +13,7 @@ from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
 from hunter.report import Report
 from hunter.series import AnalysisOptions, ChangePointGroup
+from hunter.slack import SlackNotifier, NotificationError
 from hunter.test_config import TestConfigError, TestConfig, GraphiteTestConfig
 from hunter.util import parse_datetime, DateFormatError
 
@@ -26,11 +27,13 @@ class Hunter:
     __conf: Config
     __importers: Importers
     __grafana: Optional[Grafana]
+    __slack: Optional[SlackNotifier]
 
     def __init__(self, conf: Config):
         self.__conf = conf
         self.__importers = Importers(conf)
         self.__grafana = None
+        self.__slack = self.__maybe_create_slack_notifier()
 
     def list_tests(self, group_names: Optional[List[str]]):
         if group_names is not None:
@@ -123,6 +126,19 @@ class Hunter:
                 grafana.delete_matching_annotations(annotation=annotation)
             for annotation in annotations:
                 grafana.post_annotation(annotation)
+
+    def __maybe_create_slack_notifier(self):
+        if not self.__conf.slack:
+            return None
+        return SlackNotifier(self.__conf.slack)
+
+    def notify_slack(self, test_change_points: Dict[str, List[ChangePointGroup]]):
+        if not self.__slack:
+            logging.error(
+                "Slack definition is missing from the configuration, cannot send notification"
+            )
+            return
+        self.__slack.notify(test_change_points)
 
 
 def setup_data_selector_parser(parser: argparse.ArgumentParser):
@@ -276,6 +292,11 @@ def main():
         help="Update Grafana dashboards with appropriate annotations of change points",
         action="store_true",
     )
+    analyze_parser.add_argument(
+        "--notify-slack",
+        help="Send notification to Slack channel declared in configuration containing a summary of change points",
+        action="store_true",
+    )
 
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
@@ -298,9 +319,11 @@ def main():
 
         if args.command == "analyze":
             update_grafana_flag = args.update_grafana
+            notify_slack_flag = args.notify_slack
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
             tests = hunter.get_tests(*args.tests)
+            tests_change_points = dict()
             for test in tests:
                 try:
                     change_points = hunter.analyze(test, selector=data_selector, options=options)
@@ -308,12 +331,16 @@ def main():
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
                         hunter.update_grafana(test, change_points)
+                    if notify_slack_flag and change_points:
+                        tests_change_points[test.name] = change_points
                 except DataImportError as err:
                     logging.error(err.message)
                 except GrafanaError as err:
                     logging.error(
                         f"Failed to update grafana dashboards for {test.name}: {err.message}"
                     )
+            if notify_slack_flag:
+                hunter.notify_slack(tests_change_points)
 
         if args.command is None:
             parser.print_usage()
@@ -337,6 +364,9 @@ def main():
         logging.error(err.message)
         exit(1)
     except DateFormatError as err:
+        logging.error(err.message)
+        exit(1)
+    except NotificationError as err:
         logging.error(err.message)
         exit(1)
 

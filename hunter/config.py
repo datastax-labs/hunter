@@ -8,6 +8,7 @@ from ruamel.yaml import YAML
 
 from hunter.grafana import GrafanaConfig
 from hunter.graphite import GraphiteConfig
+from hunter.slack import SlackConfig
 from hunter.test_config import TestConfig, create_test_config
 from hunter.util import merge_dict_list
 
@@ -18,6 +19,7 @@ class Config:
     grafana: GrafanaConfig
     tests: Dict[str, TestConfig]
     test_groups: Dict[str, List[TestConfig]]
+    slack: SlackConfig
 
 
 @dataclass
@@ -91,6 +93,15 @@ def load_config_from(config_file: Path) -> Config:
             config["grafana"]["user"] = os.environ.get("GRAFANA_USER", "admin")
             config["grafana"]["password"] = os.environ.get("GRAFANA_PASSWORD", "admin")
 
+        slack_config = None
+        if config.get("slack") is not None:
+            if not config["slack"]["token"]:
+                raise ValueError("slack.token")
+            slack_config = SlackConfig(
+                channel=config["slack"]["channel"],
+                bot_token=config["slack"]["token"],
+            )
+
         templates = load_templates(config)
         tests = load_tests(config, templates)
         groups = load_test_groups(config, tests)
@@ -102,6 +113,7 @@ def load_config_from(config_file: Path) -> Config:
                 user=config["grafana"]["user"],
                 password=config["grafana"]["password"],
             ),
+            slack=slack_config,
             tests=tests,
             test_groups=groups,
         )
