@@ -256,6 +256,9 @@ class Dashboard:
                     graph_panels_info.append(panel_info)
         self.__panels = {}
         for panel_info in graph_panels_info:
+            # Only include panels which have defined queries
+            if "targets" not in panel_info:
+                continue
             panel_id = panel_info["id"]
             self.__panels[panel_id] = Panel(panel_info, self.__template_variables)
 
