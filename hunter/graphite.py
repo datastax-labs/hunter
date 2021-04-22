@@ -211,7 +211,7 @@ class Graphite:
 
             for s in data_as_json:
                 series = TimeSeries(path=s["target"], points=decode_graphite_datapoints(s))
-                if len(series.points) > 5:
+                if len(series.points) >= 5:
                     result.append(series)
                 else:
                     warning(
