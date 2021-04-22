@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from itertools import groupby
 from typing import Dict, List, Optional, Iterable, OrderedDict
 
@@ -103,6 +104,21 @@ class Series:
             result[k] = v[index]
         return result
 
+    def find_first_not_earlier_than(self, time: datetime) -> Optional[int]:
+        timestamp = time.timestamp()
+        for i, t in enumerate(self.time):
+            if t >= timestamp:
+                return i
+        return None
+
+    def find_by_attribute(self, name: str, value: str) -> List[int]:
+        """ Returns the indexes of data points with given attribute value """
+        result = []
+        for i in range(len(self.time)):
+            if self.attributes_at(i).get(name) == value:
+                result.append(i)
+        return result
+
     def analyze(self, options: AnalysisOptions = AnalysisOptions()) -> "AnalyzedSeries":
         logging.info(f"Computing change points for test {self.test_name}...")
         return AnalyzedSeries(self, options)
@@ -197,6 +213,9 @@ class AnalyzedSeries:
     def test_name(self):
         return self.__series.test_name
 
+    def len(self) -> int:
+        return len(self.__series.time)
+
     def time(self) -> List[int]:
         return self.__series.time
 
@@ -235,7 +254,7 @@ def compare(
     # if index not specified, we want to take the most recent performance
     index_1 = index_1 if index_1 is not None else len(series_1.time())
     index_2 = index_2 if index_2 is not None else len(series_2.time())
-    metrics = set(series_1.metric_names()).intersection(series_2.metric_names())
+    metrics = filter(lambda m: m in series_2.metric_names(), series_1.metric_names())
 
     tester = TTestSignificanceTester(series_1.options.max_pvalue)
     stats = {}

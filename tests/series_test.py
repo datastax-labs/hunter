@@ -134,3 +134,15 @@ def test_compare_single_point():
 
     stats = compare(test_1, None, test_3, None).stats["data"]
     assert stats.pvalue < 0.01
+
+
+def test_compare_metrics_order():
+    test = Series(
+        "test",
+        time=list(range(3)),
+        metrics={"m1": Metric(), "m2": Metric(), "m3": Metric(), "m4": Metric(), "m5": Metric()},
+        data={"m1": [0, 0, 0], "m2": [0, 0, 0], "m3": [0, 0, 0], "m4": [0, 0, 0], "m5": [0, 0, 0]},
+        attributes={},
+    ).analyze()
+    cmp = compare(test, None, test, None)
+    assert list(cmp.stats.keys()) == ["m1", "m2", "m3", "m4", "m5"]
