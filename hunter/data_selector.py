@@ -25,3 +25,9 @@ class DataSelector:
         self.until_commit = None
         self.until_version = None
         self.until_time = datetime.now(tz=pytz.UTC)
+
+    def get_selection_description(self):
+        attributes = "\n".join(
+            [f"{a}: {v}" for a, v in self.__dict__.items() if not a.startswith("__") and v]
+        )
+        return f"Data Selection\n{attributes}"

@@ -132,13 +132,15 @@ class Hunter:
             return None
         return SlackNotifier(self.__conf.slack)
 
-    def notify_slack(self, test_change_points: Dict[str, List[ChangePointGroup]]):
+    def notify_slack(
+        self, test_change_points: Dict[str, List[ChangePointGroup]], selector: DataSelector
+    ):
         if not self.__slack:
             logging.error(
                 "Slack definition is missing from the configuration, cannot send notification"
             )
             return
-        self.__slack.notify(test_change_points)
+        self.__slack.notify(test_change_points, selector=selector)
 
 
 def setup_data_selector_parser(parser: argparse.ArgumentParser):
@@ -340,7 +342,7 @@ def main():
                         f"Failed to update grafana dashboards for {test.name}: {err.message}"
                     )
             if notify_slack_flag:
-                hunter.notify_slack(tests_change_points)
+                hunter.notify_slack(tests_change_points, selector=data_selector)
 
         if args.command is None:
             parser.print_usage()
