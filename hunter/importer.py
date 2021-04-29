@@ -95,7 +95,7 @@ class GraphiteImporter(Importer):
 
             metrics = test.metrics.values()
             if selector.metrics is not None:
-                metrics = [m for m in test.metrics.values() if m.name in selector.metrics]
+                metrics = [m for m in metrics if m.name in selector.metrics]
             path_to_metric = {test.prefix + "." + m.suffix: m for m in metrics}
             targets = [test.prefix + "." + m.suffix for m in metrics]
 
@@ -116,6 +116,10 @@ class GraphiteImporter(Importer):
                 values[m.name] = []
             for ts in graphite_result:
                 values[path_to_metric[ts.path].name] = column(ts.points)
+            for m in metrics:
+                if len(values[m.name]) == 0:
+                    del values[m.name]
+            metrics = [m for m in metrics if m.name in values.keys()]
 
             events = self.graphite.fetch_events(test.tags, selector.since_time, selector.until_time)
             time_resolution = resolution(time)

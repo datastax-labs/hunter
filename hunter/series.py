@@ -260,11 +260,13 @@ def compare(
     stats = {}
 
     for metric in metrics:
+        data_1 = series_1.data(metric)
         (begin_1, end_1) = series_1.get_stable_range(metric, index_1)
-        data_1 = series_1.data(metric)[begin_1:end_1]
+        data_1 = [x for x in data_1[begin_1:end_1] if x is not None]
 
+        data_2 = series_2.data(metric)
         (begin_2, end_2) = series_2.get_stable_range(metric, index_2)
-        data_2 = series_2.data(metric)[begin_2:end_2]
+        data_2 = [x for x in data_2[begin_2:end_2] if x is not None]
 
         stats[metric] = tester.compare(np.array(data_1), np.array(data_2))
 
