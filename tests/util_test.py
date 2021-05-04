@@ -61,3 +61,12 @@ def test_dict_list():
     d2 = {"a": 2}
     d3 = {"b": 3}
     assert merge_dict_list([d1, d2, d3]) == {"a": 2, "b": 3}
+
+
+def test_interpolate():
+    s = "name1:%{NAME_1}, name2:%{NAME_2}"
+    assert interpolate(s, {"NAME_1": ["foo"], "NAME_2": ["bar"]}) == ["name1:foo, name2:bar"]
+    assert interpolate(s, {"NAME_1": ["foo", "bar"], "NAME_2": ["null"]}) == [
+        "name1:foo, name2:null",
+        "name1:bar, name2:null",
+    ]

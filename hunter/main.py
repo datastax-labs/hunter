@@ -16,10 +16,16 @@ from hunter.grafana import GrafanaError, Grafana, Annotation
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
 from hunter.report import Report
-from hunter.series import AnalysisOptions, ChangePointGroup, SeriesComparison, compare
+from hunter.series import (
+    AnalysisOptions,
+    ChangePointGroup,
+    SeriesComparison,
+    compare,
+    AnalyzedSeries,
+)
 from hunter.slack import SlackNotifier, NotificationError
 from hunter.test_config import TestConfigError, TestConfig, GraphiteTestConfig
-from hunter.util import parse_datetime, DateFormatError
+from hunter.util import parse_datetime, DateFormatError, interpolate
 
 
 @dataclass
@@ -84,52 +90,119 @@ class Hunter:
 
     def analyze(
         self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
-    ) -> List[ChangePointGroup]:
+    ) -> AnalyzedSeries:
         importer = self.__importers.get(test)
         series = importer.fetch_data(test, selector)
-        change_points = series.analyze(options).change_points_by_time
+        analyzed_series = series.analyze(options)
+        change_points = analyzed_series.change_points_by_time
         report = Report(series, change_points)
         print(test.name + ":")
         print(report.format_log_annotated())
-        return change_points
+        return analyzed_series
 
     def __get_grafana(self) -> Grafana:
         if self.__grafana is None:
             self.__grafana = Grafana(self.__conf.grafana)
         return self.__grafana
 
-    def update_grafana(self, test: GraphiteTestConfig, change_points: List[ChangePointGroup]):
-        logging.info(f"Determining new Grafana annotations for test {test.name}...")
+    def update_grafana_annotations(self, test: GraphiteTestConfig, series: AnalyzedSeries):
         grafana = self.__get_grafana()
-        annotations = []
-        for change_point in change_points:
-            annotation_text = get_back_links(change_point.attributes)
-            for change in change_point.changes:
-                path = test.get_path(change.metric)
-                matching_dashboard_panels = grafana.find_all_dashboard_panels_displaying(path)
-                for dashboard_panel in matching_dashboard_panels:
-                    # Grafana timestamps have 13 digits, Graphite timestamps have 10
-                    # (hence multiplication by 10^3)
-                    annotations.append(
-                        Annotation(
-                            dashboard_id=dashboard_panel["dashboard id"],
-                            panel_id=dashboard_panel["panel id"],
-                            time=change_point.time * 10 ** 3,
-                            text=annotation_text,
-                            tags=dashboard_panel["tags"],
-                        )
+        begin = datetime.fromtimestamp(series.time()[0], tz=pytz.UTC)
+        end = datetime.fromtimestamp(series.time()[len(series.time()) - 1], tz=pytz.UTC)
+
+        logging.info(f"Fetching Grafana annotations for test {test.name}...")
+        tags_to_query = ["hunter", "change-point", "test:" + test.name]
+        old_annotations_for_test = grafana.fetch_annotations(begin, end, list(tags_to_query))
+        logging.info(f"Found {len(old_annotations_for_test)} annotations")
+
+        created_count = 0
+        for metric_name, change_points in series.change_points.items():
+            path = test.get_path(metric_name)
+            metric_tag = f"metric:{metric_name}"
+            tags_to_create = (
+                tags_to_query
+                + [metric_tag]
+                + test.tags
+                + test.annotate
+                + test.metrics[metric_name].annotate
+            )
+
+            substitutions = {
+                "TEST_NAME": test.name,
+                "METRIC_NAME": metric_name,
+                "GRAPHITE_PATH": [path],
+                "GRAPHITE_PATH_COMPONENTS": path.split("."),
+                "GRAPHITE_PREFIX": [test.prefix],
+                "GRAPHITE_PREFIX_COMPONENTS": test.prefix.split("."),
+            }
+
+            tmp_tags_to_create = []
+            for t in tags_to_create:
+                tmp_tags_to_create += interpolate(t, substitutions)
+            tags_to_create = tmp_tags_to_create
+
+            old_annotations = [a for a in old_annotations_for_test if metric_tag in a.tags]
+            old_annotation_times = set((a.time for a in old_annotations if a.tags))
+
+            target_annotations = []
+            for cp in change_points:
+                attributes = series.attributes_at(cp.index)
+                annotation_text = get_back_links(attributes)
+                target_annotations.append(
+                    Annotation(
+                        id=None,
+                        time=datetime.fromtimestamp(cp.time, tz=pytz.UTC),
+                        text=annotation_text,
+                        tags=tags_to_create,
                     )
-        if len(annotations) == 0:
-            logging.info("No Grafana panels to update")
+                )
+            target_annotation_times = set((a.time for a in target_annotations))
+
+            to_delete = [a for a in old_annotations if a.time not in target_annotation_times]
+            if to_delete:
+                logging.info(
+                    f"Removing {len(to_delete)} annotations "
+                    f"for test {test.name} and metric {metric_name}..."
+                )
+                grafana.delete_annotations(*(a.id for a in to_delete))
+
+            to_create = [a for a in target_annotations if a.time not in old_annotation_times]
+            if to_create:
+                logging.info(
+                    f"Creating {len(to_create)} annotations "
+                    f"for test {test.name} and metric {metric_name}..."
+                )
+                grafana.create_annotations(*to_create)
+                created_count += len(to_create)
+
+        if created_count == 0:
+            logging.info("All annotations up-to-date. No new annotations needed.")
         else:
-            logging.info("Updating Grafana with latest annotations...")
-            # sorting annotations in this order makes logging output easier to look through
-            annotations.sort(key=lambda a: (a.dashboard_id, a.panel_id, a.time))
-            for annotation in annotations:
-                # remove existing annotations with same dashboard id, panel id, and tags
-                grafana.delete_matching_annotations(annotation=annotation)
-            for annotation in annotations:
-                grafana.post_annotation(annotation)
+            logging.info(f"Created {created_count} annotations.")
+
+    def remove_grafana_annotations(self, test: Optional[TestConfig], force: bool):
+        """Removes all Hunter annotations (optionally for a given test) in Grafana"""
+        grafana = self.__get_grafana()
+        if test:
+            logging.info(f"Fetching Grafana annotations for test {test.name}...")
+        else:
+            logging.info(f"Fetching Grafana annotations...")
+        tags_to_query = {"hunter", "change-point"}
+        if test:
+            tags_to_query.add("test:" + test.name)
+        annotations = grafana.fetch_annotations(None, None, list(tags_to_query))
+        if not annotations:
+            logging.info("No annotations found.")
+            return
+        if not force:
+            print(
+                f"Are you sure to remove {len(annotations)} annotations from {grafana.url}? [y/N]"
+            )
+            decision = input().strip()
+            if decision.lower() != "y" and decision.lower() != "yes":
+                return
+        logging.info(f"Removing {len(annotations)} annotations...")
+        grafana.delete_annotations(*(a.id for a in annotations))
 
     def regressions(
         self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
@@ -370,6 +443,14 @@ def main():
     setup_data_selector_parser(regressions_parser)
     setup_analysis_options_parser(regressions_parser)
 
+    remove_annotations_parser = subparsers.add_parser("remove-annotations")
+    remove_annotations_parser.add_argument(
+        "tests", help="name of the test or test group", nargs="*"
+    )
+    remove_annotations_parser.add_argument(
+        "--force", help="don't ask questions, just do it", dest="force", action="store_true"
+    )
+
     try:
         args = parser.parse_args()
         conf = config.load_config()
@@ -395,13 +476,13 @@ def main():
             tests_change_points = dict()
             for test in tests:
                 try:
-                    change_points = hunter.analyze(test, selector=data_selector, options=options)
+                    analyzed_series = hunter.analyze(test, selector=data_selector, options=options)
                     if update_grafana_flag:
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
-                        hunter.update_grafana(test, change_points)
-                    if notify_slack_flag and change_points:
-                        tests_change_points[test.name] = change_points
+                        hunter.update_grafana_annotations(test, analyzed_series)
+                    if notify_slack_flag and analyzed_series:
+                        tests_change_points[test.name] = analyzed_series.change_points_by_time
                 except DataImportError as err:
                     logging.error(err.message)
                 except GrafanaError as err:
@@ -436,6 +517,14 @@ def main():
                 print(f"Regressions in {regressing_test_count} tests found")
             if errors > 0:
                 print(f"Some tests were skipped due to import / analyze errors. Consult error log.")
+
+        if args.command == "remove-annotations":
+            if args.tests:
+                tests = hunter.get_tests(*args.tests)
+                for test in tests:
+                    hunter.remove_grafana_annotations(test, args.force)
+            else:
+                hunter.remove_grafana_annotations(None, args.force)
 
         if args.command is None:
             parser.print_usage()

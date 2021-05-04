@@ -1,5 +1,6 @@
 import datetime
 import math
+import re
 import sys
 from collections import deque, OrderedDict
 from dataclasses import dataclass
@@ -202,3 +203,31 @@ def merge_dict_list(dicts: List[Dict]) -> Dict:
     Simple values with the same key are overwritten (rightmost dictionary wins).
     """
     return reduce(merge_dicts, dicts, {})
+
+
+def interpolate(s: str, vars: Dict[str, List[str]]) -> List[str]:
+    """
+    Replaces all occurrences of %{VARIABLE} with respective variable values looked up in the
+    vars dictionary. A variable is allowed to have more than one value assigned –
+    in this case one result string is returned per each combination of variable values.
+
+    Example:
+    s = "name:%{NAME}"
+    vars = { "NAME": ["foo", "bar"] }
+    result = ["name:foo", "name:bar"]
+    """
+    match = re.search("%{(\\w+)}", s)
+    if match:
+        var_name = match.group(1)
+        values = vars[var_name]
+        start, end = match.span(0)
+        before = s[0:start]
+        after = s[end:]
+        result = []
+        remaining = interpolate(after, vars)
+        for suffix in remaining:
+            for v in values:
+                result.append(before + v + suffix)
+        return result
+    else:
+        return [s]

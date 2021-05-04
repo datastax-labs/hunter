@@ -225,6 +225,9 @@ class AnalyzedSeries:
     def attributes(self) -> Iterable[str]:
         return self.__series.attributes.keys()
 
+    def attributes_at(self, index: int) -> Dict[str, str]:
+        return self.__series.attributes_at(index)
+
     def attribute_values(self, attribute: str) -> List[str]:
         return self.__series.attributes[attribute]
 

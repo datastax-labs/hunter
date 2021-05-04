@@ -54,19 +54,29 @@ class GraphiteMetric:
     direction: int
     scale: float
     suffix: str
+    annotate: List[str]  # tags appended to Grafana annotations
 
 
 @dataclass
 class GraphiteTestConfig(TestConfig):
     prefix: str  # location of the data for the main branch
     metrics: Dict[str, GraphiteMetric]  # collection of metrics to fetch
-    tags: Set[str]  # all these tags must be present on graphite events
+    tags: List[str]  # tags to query graphite events for this test
+    annotate: List[str]  # annotation tags
 
-    def __init__(self, name: str, prefix: str, metrics: List[GraphiteMetric], tags: Set[str]):
+    def __init__(
+        self,
+        name: str,
+        prefix: str,
+        metrics: List[GraphiteMetric],
+        tags: List[str],
+        annotate: List[str],
+    ):
         self.name = name
         self.prefix = prefix
         self.metrics = {m.name: m for m in metrics}
         self.tags = tags
+        self.annotate = annotate
 
     def get_path(self, metric_name: str) -> str:
         metric = self.metrics.get(metric_name)
@@ -150,11 +160,16 @@ def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfi
                     suffix=metric_conf["suffix"],
                     direction=int(metric_conf.get("direction", "1")),
                     scale=float(metric_conf.get("scale", "1")),
+                    annotate=metric_conf.get("annotate", []),
                 )
             )
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in {name}.metrics: {e.args[0]}")
 
     return GraphiteTestConfig(
-        name, prefix=test_info["prefix"], tags=test_info.get("tags", []), metrics=metrics
+        name,
+        prefix=test_info["prefix"],
+        tags=test_info.get("tags", []),
+        annotate=test_info.get("annotate", []),
+        metrics=metrics,
     )
