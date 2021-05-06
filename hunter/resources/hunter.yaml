@@ -1,0 +1,32 @@
+# External systems connectors configuration:
+graphite:
+  url: ${GRAPHITE_ADDRESS}
+
+grafana:
+  url: ${GRAFANA_ADDRESS}
+  user: ${GRAFANA_USER}
+  password: ${GRAFANA_PASSWORD}
+
+slack:
+  channel: "hunters"
+  token: ${SLACK_BOT_TOKEN}
+
+# Templates define common bits shared between test definitions:
+templates:
+
+# Define your tests here:
+tests:
+  local.sample:
+    type: csv
+    file: tests/resources/sample.csv
+    time_column: time
+    metrics: [metric1, metric2]
+    attributes: [commit]
+    csv_options:
+      delimiter: ','
+      quote_char: "'"
+
+
+test_groups:
+  local:
+    - local.sample
