@@ -2,10 +2,10 @@ Hunter – Hunts Performance Regressions
 ======================================
 
 Hunter fetches performance test results from external systems
-like Fallout and Graphite, analyzes them statistically and 
-issues reports about possible performance regressions. 
+Graphite, analyzes them statistically and issues reports about 
+possible performance regressions. 
 
-This is work-in-progress, alpha quality software. 
+This is still work-in-progress, unstable code. 
 Features may be missing. 
 Usability may be unsatisfactory.
 Documentation may be incomplete.
@@ -16,16 +16,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development instructions.
 ## Installation
 
 Hunter requires Python 3.8.  If you don't have python 3.8, 
-[use pyenv to install it](https://datastax.jira.com/wiki/spaces/~741246479/pages/827785323/Coping+with+python+environments).
-
-[Install
-pipx](https://datastax.jira.com/wiki/spaces/~741246479/pages/827785323/Coping+with+python+environments),
-if you haven't already.
+use pyenv to install it.
 
 Use pipx to install hunter:
 
 ```
-pipx install git+ssh://git@github.com/riptano/hunter
+pipx install git+ssh://git@github.com/datastax/hunter
 ```
 
 ## Setup

@@ -2,7 +2,7 @@
 
 * [Install poetry](https://python-poetry.org/docs/#installation)
 
-* If you want to maintain your own virtualenv, [install pyenv and use pyenv virtualenv](https://datastax.jira.com/wiki/spaces/~741246479/pages/827785323/Coping+with+python+environments) to create and manage one.  Poetry will automatically find any active virtualenv and use that.
+* If you want to maintain your own virtualenv, install pyenv and use pyenv virtualenv to create and manage one.  Poetry will automatically find any active virtualenv and use that.
 
 * Run poetry to install dependencies:
 
