@@ -259,7 +259,7 @@ class CsvImporter(Importer):
 
                 # Convert metrics to series.Metrics
                 metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
-                return Series(str(file.name), time, metrics, data, attributes)
+                return Series(test_conf.name, time, metrics, data, attributes)
 
         except FileNotFoundError:
             raise DataImportError(f"Input file not found: {file}")

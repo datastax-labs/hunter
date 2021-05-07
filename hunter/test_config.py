@@ -101,12 +101,12 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         raise TestConfigError(f"Unknown test type {test_type} for test {name}")
 
 
-def create_csv_test_config(name: str, test_info: Dict) -> CsvTestConfig:
+def create_csv_test_config(test_name: str, test_info: Dict) -> CsvTestConfig:
     csv_options = CsvOptions()
     try:
         file = test_info["file"]
     except KeyError as e:
-        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
+        raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")
     time_column = test_info.get("time_column", "time")
     metrics_info = test_info.get("metrics")
     metrics = []
@@ -124,17 +124,17 @@ def create_csv_test_config(name: str, test_info: Dict) -> CsvTestConfig:
                 )
             )
     else:
-        raise TestConfigError(f"Metrics of the test {name} must be a list or dictionary")
+        raise TestConfigError(f"Metrics of the test {test_name} must be a list or dictionary")
 
     attributes = test_info.get("attributes", [])
     if not isinstance(attributes, List):
-        raise TestConfigError(f"Attributes of the test {name} must be a list")
+        raise TestConfigError(f"Attributes of the test {test_name} must be a list")
 
     if test_info.get("csv_options"):
         csv_options.delimiter = test_info["csv_options"].get("delimiter", ",")
         csv_options.quote_char = test_info["csv_options"].get("quote_char", '"')
     return CsvTestConfig(
-        name,
+        test_name,
         file,
         csv_options=csv_options,
         time_column=time_column,
