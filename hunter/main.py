@@ -117,7 +117,7 @@ class Hunter:
 
         created_count = 0
         for metric_name, change_points in series.change_points.items():
-            path = test.get_path(metric_name)
+            path = test.get_path(series.branch_name(), metric_name)
             metric_tag = f"metric:{metric_name}"
             tags_to_create = (
                 tags_to_query
@@ -219,30 +219,37 @@ class Hunter:
         since_version = selector.since_version
         since_commit = selector.since_commit
         since_time = selector.since_time
-        selector = copy.deepcopy(selector)
-        selector.since_version = None
-        selector.since_commit = None
-        selector.since_time = since_time - timedelta(days=30)
-        series = importer.fetch_data(test, selector)
+        baseline_selector = copy.deepcopy(selector)
+        baseline_selector.branch = None
+        baseline_selector.since_version = None
+        baseline_selector.since_commit = None
+        baseline_selector.since_time = since_time - timedelta(days=30)
+        baseline_series = importer.fetch_data(test, baseline_selector)
 
         if since_version:
-            baseline_index = series.find_by_attribute("version", since_version)
+            baseline_index = baseline_series.find_by_attribute("version", since_version)
             if not baseline_index:
                 raise HunterError(f"No runs of test {test.name} with version {since_version}")
             baseline_index = max(baseline_index)
         elif since_commit:
-            baseline_index = series.find_by_attribute("commit", since_commit)
+            baseline_index = baseline_series.find_by_attribute("commit", since_commit)
             if not baseline_index:
                 raise HunterError(f"No runs of test {test.name} with commit {since_commit}")
             baseline_index = max(baseline_index)
         else:
-            baseline_index = series.find_first_not_earlier_than(since_time)
+            baseline_index = baseline_series.find_first_not_earlier_than(since_time)
 
-        series = series.analyze()
-        cmp = compare(series, baseline_index, series, series.len())
+        baseline_series = baseline_series.analyze()
+
+        if selector.branch:
+            target_series = importer.fetch_data(test, selector).analyze()
+        else:
+            target_series = baseline_series
+
+        cmp = compare(baseline_series, baseline_index, target_series, target_series.len())
         regressions = []
         for metric_name, stats in cmp.stats.items():
-            direction = series.metric(metric_name).direction
+            direction = baseline_series.metric(metric_name).direction
             m1 = stats.mean_1
             m2 = stats.mean_2
             change_percent = stats.forward_rel_change() * 100.0
@@ -277,6 +284,9 @@ class Hunter:
 
 def setup_data_selector_parser(parser: argparse.ArgumentParser):
     parser.add_argument(
+        "--branch", metavar="STRING", dest="branch", help="name of the branch", nargs="?"
+    )
+    parser.add_argument(
         "--metrics",
         metavar="LIST",
         dest="metrics",
@@ -295,13 +305,13 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         "--since-commit",
         metavar="STRING",
         dest="since_commit",
-        help="The commit at the start of the time span to analyze",
+        help="the commit at the start of the time span to analyze",
     )
     since_group.add_argument(
         "--since-version",
         metavar="STRING",
         dest="since_version",
-        help="The version at the start of the time span to analyze",
+        help="the version at the start of the time span to analyze",
     )
     since_group.add_argument(
         "--since",
@@ -315,13 +325,13 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         "--until-commit",
         metavar="STRING",
         dest="until_commit",
-        help="The commit at the end of the time span to analyze",
+        help="the commit at the end of the time span to analyze",
     )
     until_group.add_argument(
         "--until-version",
         metavar="STRING",
         dest="until_version",
-        help="The version at the end of the time span to analyze",
+        help="the version at the end of the time span to analyze",
     )
     until_group.add_argument(
         "--until",
@@ -333,6 +343,8 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
 
 def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
     data_selector = DataSelector()
+    if args.branch:
+        data_selector.branch = args.branch
     if args.metrics is not None:
         data_selector.metrics = list(args.metrics.split(","))
     if args.attributes is not None:
@@ -498,7 +510,9 @@ def main():
             errors = 0
             for test in tests:
                 try:
-                    regressions = hunter.regressions(test, selector=data_selector, options=options)
+                    regressions = hunter.regressions(
+                        test, selector=data_selector, options=options
+                    )
                     if regressions:
                         regressing_test_count += 1
                 except HunterError as err:

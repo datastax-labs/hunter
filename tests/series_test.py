@@ -10,7 +10,8 @@ def test_change_point_detection():
     time = list(range(len(series_1)))
     test = Series(
         "test",
-        time,
+        branch=None,
+        time=time,
         metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
         data={"series1": series_1, "series2": series_2},
         attributes={},
@@ -30,7 +31,8 @@ def test_change_point_min_magnitude():
     time = list(range(len(series_1)))
     test = Series(
         "test",
-        time,
+        branch=None,
+        time=time,
         metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
         data={"series1": series_1, "series2": series_2},
         attributes={},
@@ -58,6 +60,7 @@ def test_change_point_detection_performance():
     for run in range(0, 10):  # 10 series
         test = Series(
             "test",
+            branch=None,
             time=list(timestamps),
             metrics={"series": Metric(1, 1.0)},
             data={"series": series},
@@ -74,7 +77,8 @@ def test_get_stable_range():
     time = list(range(len(series_1)))
     test = Series(
         "test",
-        time,
+        branch=None,
+        time=time,
         metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
         data={"series1": series_1, "series2": series_2},
         attributes={},
@@ -96,8 +100,8 @@ def test_compare():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.04, 1.02, 0.50, 0.51, 0.48, 0.48, 0.53]
     series_2 = [2.02, 2.03, 2.01, 2.04, 0.51, 0.49, 0.51, 0.49, 0.48, 0.52, 0.50]
     time = list(range(len(series_1)))
-    test_1 = Series("test_1", time, {"data": Metric()}, {"data": series_1}, {}).analyze()
-    test_2 = Series("test_2", time, {"data": Metric()}, {"data": series_2}, {}).analyze()
+    test_1 = Series("test_1", None, time, {"data": Metric()}, {"data": series_1}, {}).analyze()
+    test_2 = Series("test_2", None, time, {"data": Metric()}, {"data": series_2}, {}).analyze()
 
     stats = compare(test_1, None, test_2, None).stats["data"]
     assert stats.pvalue > 0.5  # tails are almost the same
@@ -121,10 +125,10 @@ def test_compare_single_point():
     series_3 = [0.99]
 
     test_1 = Series(
-        "test_1", list(range(len(series_1))), {"data": Metric()}, {"data": series_1}, {}
+        "test_1", None, list(range(len(series_1))), {"data": Metric()}, {"data": series_1}, {}
     ).analyze()
-    test_2 = Series("test_2", [1], {"data": Metric()}, {"data": series_2}, {}).analyze()
-    test_3 = Series("test_3", [1], {"data": Metric()}, {"data": series_3}, {}).analyze()
+    test_2 = Series("test_2", None, [1], {"data": Metric()}, {"data": series_2}, {}).analyze()
+    test_3 = Series("test_3", None, [1], {"data": Metric()}, {"data": series_3}, {}).analyze()
 
     stats = compare(test_1, None, test_2, None).stats["data"]
     assert stats.pvalue > 0.5
@@ -139,6 +143,7 @@ def test_compare_single_point():
 def test_compare_metrics_order():
     test = Series(
         "test",
+        branch=None,
         time=list(range(3)),
         metrics={"m1": Metric(), "m2": Metric(), "m3": Metric(), "m4": Metric(), "m5": Metric()},
         data={"m1": [0, 0, 0], "m2": [0, 0, 0], "m3": [0, 0, 0], "m4": [0, 0, 0], "m5": [0, 0, 0]},

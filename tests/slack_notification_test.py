@@ -44,7 +44,8 @@ def test_blocks_dispatch():
     time = list(range(len(series1)))
     test = Series(
         "test",
-        time,
+        branch=None,
+        time=time,
         metrics={"series1": Metric(), "series2": Metric()},
         data={"series1": series1, "series2": series2},
         attributes={},

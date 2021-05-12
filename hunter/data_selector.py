@@ -7,6 +7,7 @@ import pytz
 
 @dataclass
 class DataSelector:
+    branch: Optional[str]
     metrics: Optional[List[str]]
     attributes: Optional[List[str]]
     since_commit: Optional[str]
@@ -17,6 +18,7 @@ class DataSelector:
     until_time: datetime
 
     def __init__(self):
+        self.branch = None
         self.metrics = None
         self.attributes = None
         self.since_commit = None

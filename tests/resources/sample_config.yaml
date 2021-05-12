@@ -46,51 +46,34 @@ templates:
         scale: 1.0e-6
         direction: -1
 
-  ebdse_write:
+  write_metrics:
     type: graphite
     metrics:
       throughput:
-        suffix: ebdse_write.result-success.throughput
+        suffix: write.result-success.throughput
       p50:
-        suffix: ebdse_write.result-success.p50
+        suffix: write.result-success.p50
       p75:
-        suffix: ebdse_write.result-success.p75
+        suffix: write.result-success.p75
       p90:
-        suffix: ebdse_write.result-success.p90
+        suffix: write.result-success.p90
       p95:
-        suffix: ebdse_write.result-success.p95
+        suffix: write.result-success.p95
       p99:
-        suffix: ebdse_write.result-success.p99
+        suffix: write.result-success.p99
       max:
-        suffix: ebdse_write.result-success.max
+        suffix: write.result-success.max
 
-  sai_visa_write:
-    type: graphite
-    metrics:
-      throughput:
-        suffix: WRITE__writes_.ok.throughput
-      p50:
-        suffix: WRITE__writes_.ok.p50
-      p75:
-        suffix: WRITE__writes_.ok.p75
-      p90:
-        suffix: WRITE__writes_.ok.p90
-      p95:
-        suffix: WRITE__writes_.ok.p95
-      p99:
-        suffix: WRITE__writes_.ok.p99
-      max:
-        suffix: WRITE__writes_.ok.max
 
 tests:
-  local_1:
+  local1:
     type: csv
     file: tests/resources/sample.csv
     time_column: time
     metrics: [metric1, metric2]
     attributes: [commit]
 
-  local_2:
+  local2:
     type: csv
     file: tests/resources/sample.csv
     time_column: time
@@ -103,21 +86,21 @@ tests:
         direction: -1
     attributes: [ commit ]
 
-  dse68.write.rf1:
-    inherit: [common_metrics, ebdse_write]
-    prefix: performance_regressions.daily.dse68.write.throughput.1-bmsmall-rf-1
+  remote1:
+    inherit: [common_metrics, write_metrics]
+    prefix: "performance_regressions.my_product.%{BRANCH}.test1"
 
-  dse68.write.rf3:
-    inherit: [common_metrics, ebdse_write]
-    prefix: performance_regressions.daily.dse68.write.throughput.3-bmsmall-rf-3
+  remote2:
+    inherit: [common_metrics, write_metrics]
+    prefix: "performance_regressions.my_product.main.test2"
+    branch_prefix: "performance_regressions.my_product.feature-%{BRANCH}.test2"
 
-  dse68.sai-visa.write-nodesync.multi-20k-stcs:
-    inherit: [common_metrics, sai_visa_write]
-    prefix: performance_regressions.daily.dse68.sai-visa.write-nodesync.multi-20k-stcs
 
 
 test_groups:
-  dse68:
-    - dse68.write.rf1
-    - dse68.write.rf3
-    - dse68.sai-visa.write-nodesync.multi-20k-stcs
+  local:
+    - local1
+    - local2
+  remote:
+    - remote1
+    - remote2

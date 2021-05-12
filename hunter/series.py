@@ -77,6 +77,7 @@ class Series:
     """
 
     test_name: str
+    branch: Optional[str]
     time: List[int]
     metrics: Dict[str, Metric]
     attributes: Dict[str, List[str]]
@@ -85,12 +86,14 @@ class Series:
     def __init__(
         self,
         test_name: str,
+        branch: Optional[str],
         time: List[int],
         metrics: Dict[str, Metric],
         data: Dict[str, List[float]],
         attributes: Dict[str, List[str]],
     ):
         self.test_name = test_name
+        self.branch = branch
         self.time = time
         self.metrics = metrics
         self.attributes = attributes if attributes else {}
@@ -210,8 +213,11 @@ class AnalyzedSeries:
 
         return begin, end
 
-    def test_name(self):
+    def test_name(self) -> str:
         return self.__series.test_name
+
+    def branch_name(self) -> Optional[str]:
+        return self.__series.branch
 
     def len(self) -> int:
         return len(self.__series.time)

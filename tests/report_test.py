@@ -8,7 +8,8 @@ def test_report():
     time = list(range(len(series1)))
     test = Series(
         "test",
-        time,
+        branch=None,
+        time=time,
         metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
         data={"series1": series1, "series2": series2},
         attributes={},

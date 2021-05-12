@@ -62,12 +62,15 @@ class GraphiteImporter(Importer):
             raise ValueError("Expected GraphiteTestConfig")
 
         try:
+            attributes = test.tags.copy()
+            if selector.branch:
+                attributes += [selector.branch]
 
             # if the user has specified since_<commit/version> and/or until_<commit/version>,
             # we need to attempt to extract a timestamp from appropriate Graphite events, and
             # update selector.since_time and selector.until_time, respectively
             since_events = self.graphite.fetch_events_with_matching_time_option(
-                test.tags, selector.since_commit, selector.since_version
+                attributes, selector.since_commit, selector.since_version
             )
             if len(since_events) > 0:
                 # since timestamps of metrics get rounded down, in order to include these, we need to
@@ -81,7 +84,7 @@ class GraphiteImporter(Importer):
                 selector.since_time = parse_datetime(str(rounded_time)) - timedelta(milliseconds=1)
 
             until_events = self.graphite.fetch_events_with_matching_time_option(
-                test.tags, selector.until_commit, selector.until_version
+                attributes, selector.until_commit, selector.until_version
             )
             if len(until_events) > 0:
                 selector.until_time = until_events[0].pub_time
@@ -97,7 +100,7 @@ class GraphiteImporter(Importer):
             if selector.metrics is not None:
                 metrics = [m for m in metrics if m.name in selector.metrics]
             path_to_metric = {test.prefix + "." + m.suffix: m for m in metrics}
-            targets = [test.prefix + "." + m.suffix for m in metrics]
+            targets = [test.get_path(selector.branch, m.name) for m in metrics]
 
             graphite_result = self.graphite.fetch_data(targets, selector)
             if not graphite_result:
@@ -121,7 +124,9 @@ class GraphiteImporter(Importer):
                     del values[m.name]
             metrics = [m for m in metrics if m.name in values.keys()]
 
-            events = self.graphite.fetch_events(test.tags, selector.since_time, selector.until_time)
+            events = self.graphite.fetch_events(
+                attributes, selector.since_time, selector.until_time
+            )
             time_resolution = resolution(time)
             events_by_time = {}
             for e in events:
@@ -138,12 +143,24 @@ class GraphiteImporter(Importer):
                 versions.append(event.version if event is not None else None)
                 branches.append(event.branch if event is not None else None)
 
-            tags = {"run": run_ids, "branch": branches, "version": versions, "commit": commits}
+            attributes = {
+                "run": run_ids,
+                "branch": branches,
+                "version": versions,
+                "commit": commits,
+            }
             if selector.attributes is not None:
-                tags = {tag: tags[tag] for tag in selector.attributes}
+                attributes = {a: attributes[a] for a in selector.attributes}
 
             metrics = {m.name: Metric(m.direction, m.scale) for m in metrics}
-            return Series(test.name, time, metrics, values, tags)
+            return Series(
+                test.name,
+                branch=selector.branch,
+                time=time,
+                metrics=metrics,
+                data=values,
+                attributes=attributes,
+            )
 
         except GraphiteError as e:
             raise DataImportError(f"Failed to import test {test.name}: {e.message}")
@@ -180,6 +197,9 @@ class CsvImporter(Importer):
 
         if not isinstance(test_conf, CsvTestConfig):
             raise ValueError("Expected CsvTestConfig")
+
+        if selector.branch:
+            raise ValueError("CSV tests don't support branching yet")
 
         since_time = selector.since_time
         until_time = selector.until_time
@@ -259,7 +279,14 @@ class CsvImporter(Importer):
 
                 # Convert metrics to series.Metrics
                 metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
-                return Series(test_conf.name, time, metrics, data, attributes)
+                return Series(
+                    test_conf.name,
+                    branch=None,
+                    time=time,
+                    metrics=metrics,
+                    data=data,
+                    attributes=attributes,
+                )
 
         except FileNotFoundError:
             raise DataImportError(f"Input file not found: {file}")
