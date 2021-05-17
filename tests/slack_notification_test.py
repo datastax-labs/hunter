@@ -49,8 +49,8 @@ def test_blocks_dispatch():
         data={"series1": series1, "series2": series2},
         attributes={},
     )
-    changepoints = test.analyze().change_points_by_time
-    dispatches = SlackNotification(change_point_groups={"test": changepoints}).create_dispatches()
+    analyzed_series = test.analyze()
+    dispatches = SlackNotification(test_analyzed_series={"test": analyzed_series}).create_dispatches()
     assert len(dispatches) == 1, "Unexpected number of Slack messages created"
     with open("tests/resources/expected-slack-blocks.json", "r") as f:
         assert dispatches[0] == json.loads(f.read())

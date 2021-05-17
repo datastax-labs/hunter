@@ -266,9 +266,7 @@ class Hunter:
             return None
         return SlackNotifier(self.__conf.slack)
 
-    def notify_slack(
-        self, test_change_points: Dict[str, List[ChangePointGroup]], selector: DataSelector
-    ):
+    def notify_slack(self, test_change_points: Dict[str, AnalyzedSeries], selector: DataSelector):
         if not self.__slack:
             logging.error(
                 "Slack definition is missing from the configuration, cannot send notification"
@@ -473,7 +471,7 @@ def main():
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
             tests = hunter.get_tests(*args.tests)
-            tests_change_points = dict()
+            tests_analyzed_series = {test.name: None for test in tests}
             for test in tests:
                 try:
                     analyzed_series = hunter.analyze(test, selector=data_selector, options=options)
@@ -481,8 +479,8 @@ def main():
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
                         hunter.update_grafana_annotations(test, analyzed_series)
-                    if notify_slack_flag and analyzed_series:
-                        tests_change_points[test.name] = analyzed_series.change_points_by_time
+                    if notify_slack_flag:
+                        tests_analyzed_series[test.name] = analyzed_series
                 except DataImportError as err:
                     logging.error(err.message)
                 except GrafanaError as err:
@@ -490,7 +488,7 @@ def main():
                         f"Failed to update grafana dashboards for {test.name}: {err.message}"
                     )
             if notify_slack_flag:
-                hunter.notify_slack(tests_change_points, selector=data_selector)
+                hunter.notify_slack(tests_analyzed_series, selector=data_selector)
 
         if args.command == "regressions":
             data_selector = data_selector_from_args(args)
