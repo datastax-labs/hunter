@@ -1,6 +1,7 @@
 import argparse
 import copy
 import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
@@ -220,6 +221,7 @@ class Hunter:
         since_commit = selector.since_commit
         since_time = selector.since_time
         baseline_selector = copy.deepcopy(selector)
+        baseline_selector.last_n_points = sys.maxsize
         baseline_selector.branch = None
         baseline_selector.since_version = None
         baseline_selector.since_commit = None
@@ -339,6 +341,13 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         dest="until_time",
         help="the end of the time span to analyze; same syntax as --since",
     )
+    parser.add_argument(
+        "--last",
+        type=int,
+        metavar="COUNT",
+        dest="last_n_points",
+        help="the number of data points to take from the end of the series"
+    )
 
 
 def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
@@ -361,6 +370,8 @@ def data_selector_from_args(args: argparse.Namespace) -> DataSelector:
         data_selector.until_version = args.until_version
     if args.until_time is not None:
         data_selector.until_time = parse_datetime(args.until_time)
+    if args.last_n_points is not None:
+        data_selector.last_n_points = args.last_n_points
     return data_selector
 
 

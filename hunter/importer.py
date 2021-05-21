@@ -107,7 +107,7 @@ class GraphiteImporter(Importer):
                 raise DataImportError(f"No timeseries found in Graphite for test {test.name}.")
 
             times = [[x.time for x in series.points] for series in graphite_result]
-            time: List[int] = merge_sorted(times)
+            time: List[int] = merge_sorted(times)[-selector.last_n_points:]
 
             def column(series: List[DataPoint]) -> List[float]:
                 value_by_time = dict([(x.time, x.value) for x in series])
@@ -279,6 +279,18 @@ class CsvImporter(Importer):
 
                 # Convert metrics to series.Metrics
                 metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
+
+                # Leave last n points:
+                time = time[-selector.last_n_points:]
+                tmp = data
+                data = {}
+                for k, v in tmp.items():
+                    data[k] = v[-selector.last_n_points:]
+                tmp = attributes
+                attributes = {}
+                for k, v in tmp.items():
+                    attributes[k] = v[-selector.last_n_points:]
+
                 return Series(
                     test_conf.name,
                     branch=None,

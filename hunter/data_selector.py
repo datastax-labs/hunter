@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ class DataSelector:
     branch: Optional[str]
     metrics: Optional[List[str]]
     attributes: Optional[List[str]]
+    last_n_points: int
     since_commit: Optional[str]
     since_version: Optional[str]
     since_time: datetime
@@ -21,6 +23,7 @@ class DataSelector:
         self.branch = None
         self.metrics = None
         self.attributes = None
+        self.last_n_points = sys.maxsize
         self.since_commit = None
         self.since_version = None
         self.since_time = datetime.now(tz=pytz.UTC) - timedelta(days=365)

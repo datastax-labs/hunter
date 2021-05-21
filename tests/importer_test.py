@@ -107,3 +107,21 @@ def test_import_csv_semicolon_sep():
     assert len(series.data["m1"]) == 10
     assert len(series.data["m2"]) == 10
     assert len(series.attributes["commit"]) == 10
+
+
+def test_import_csv_last_n_points():
+    test = CsvTestConfig(
+        name="test",
+        file="tests/resources/sample.csv",
+        csv_options=CsvOptions(),
+        time_column="time",
+        metrics=[CsvMetric("m1", 1, 1.0, "metric1"), CsvMetric("m2", 1, 5.0, "metric2")],
+        attributes=["commit"],
+    )
+    importer = CsvImporter()
+    selector = DataSelector()
+    selector.last_n_points = 5
+    series = importer.fetch_data(test, selector=selector)
+    assert len(series.time) == 5
+    assert len(series.data["m2"]) == 5
+    assert len(series.attributes["commit"]) == 5
