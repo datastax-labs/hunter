@@ -99,7 +99,7 @@ class GraphiteImporter(Importer):
             metrics = test.metrics.values()
             if selector.metrics is not None:
                 metrics = [m for m in metrics if m.name in selector.metrics]
-            path_to_metric = {test.prefix + "." + m.suffix: m for m in metrics}
+            path_to_metric = {test.get_path(selector.branch, m.name): m for m in metrics}
             targets = [test.get_path(selector.branch, m.name) for m in metrics]
 
             graphite_result = self.graphite.fetch_data(targets, selector)
