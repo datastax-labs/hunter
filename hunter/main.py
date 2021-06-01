@@ -283,6 +283,22 @@ class Hunter:
             return
         self.__slack.notify(test_change_points, selector=selector)
 
+    def validate(self):
+        valid = True
+        for name, test in self.__conf.tests.items():
+            logging.info("Checking {}".format(name))
+            try:
+                importer = self.__importers.get(test)
+                series = importer.fetch_data(test)
+                for metric, metric_data in series.data.items():
+                    if not metric_data:
+                        logging.warning("Test metrics does not have data: {} {}".format(name, metric))
+            except Exception as err:
+                logging.error("Invalid test definition: {}\n{}\n".format(name, repr(err)))
+                valid = False
+        if not valid:
+            exit(1)
+
 
 def setup_data_selector_parser(parser: argparse.ArgumentParser):
     parser.add_argument(
@@ -472,6 +488,9 @@ def main():
         "--force", help="don't ask questions, just do it", dest="force", action="store_true"
     )
 
+    validate_parser = subparsers.add_parser("validate",
+                                            help="validates the tests and metrics defined in the configuration")
+
     try:
         args = parser.parse_args()
         conf = config.load_config()
@@ -548,6 +567,9 @@ def main():
                     hunter.remove_grafana_annotations(test, args.force)
             else:
                 hunter.remove_grafana_annotations(None, args.force)
+
+        if args.command == "validate":
+            hunter.validate()
 
         if args.command is None:
             parser.print_usage()
