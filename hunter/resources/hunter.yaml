@@ -8,7 +8,6 @@ grafana:
   password: ${GRAFANA_PASSWORD}
 
 slack:
-  channel: "hunters"
   token: ${SLACK_BOT_TOKEN}
 
 # Templates define common bits shared between test definitions:

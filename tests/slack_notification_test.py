@@ -1,7 +1,25 @@
 import json
 
+from datetime import datetime
+from typing import Dict, List
+
+from hunter.data_selector import DataSelector
 from hunter.series import Series, Metric
-from hunter.slack import SlackNotification
+from hunter.slack import SlackNotifier, NotificationError
+
+
+NOTIFICATION_CHANNELS = ["a-channel", "b-channel"]
+
+
+class DispatchTrackingMockClient:
+    dispatches: Dict[str, List[List[object]]] = dict()
+
+    def chat_postMessage(self, channel: str=None, blocks: List[object]=None):
+        if not channel or not blocks:
+            raise NotificationError(f"Invalid dispatch: {channel} {blocks}")
+        if channel not in self.dispatches:
+            self.dispatches[channel] = []
+        self.dispatches[channel].append(blocks)
 
 
 def test_blocks_dispatch():
@@ -50,8 +68,18 @@ def test_blocks_dispatch():
         data={"series1": series1, "series2": series2},
         attributes={},
     )
+    data_selector = DataSelector()
+    data_selector.since_time = datetime(1970, 1, 1)
+    data_selector.until_time = datetime(1970, 1, 1, hour=1)
     analyzed_series = test.analyze()
-    dispatches = SlackNotification(test_analyzed_series={"test": analyzed_series}).create_dispatches()
-    assert len(dispatches) == 1, "Unexpected number of Slack messages created"
-    with open("tests/resources/expected-slack-blocks.json", "r") as f:
-        assert dispatches[0] == json.loads(f.read())
+    mock_client = DispatchTrackingMockClient()
+    notifier = SlackNotifier(client=mock_client)
+    notifier.notify(test_analyzed_series={"test": analyzed_series},
+                    selector=data_selector,
+                    channels=NOTIFICATION_CHANNELS)
+    dispatches = mock_client.dispatches
+    assert list(dispatches.keys()) == NOTIFICATION_CHANNELS, "Wrong channels were notified"
+    for channel in NOTIFICATION_CHANNELS:
+        assert len(dispatches[channel]) == 1, "Unexpected number of Slack messages created"
+        with open("tests/resources/expected-slack-blocks.json", "r") as f:
+            assert dispatches[channel][0] == json.loads(f.read())

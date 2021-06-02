@@ -4,6 +4,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from slack_sdk import WebClient
 from typing import Dict, Optional, List
 
 import pytz
@@ -273,15 +274,20 @@ class Hunter:
     def __maybe_create_slack_notifier(self):
         if not self.__conf.slack:
             return None
-        return SlackNotifier(self.__conf.slack)
+        return SlackNotifier(WebClient(token=self.__conf.slack.bot_token))
 
-    def notify_slack(self, test_change_points: Dict[str, AnalyzedSeries], selector: DataSelector):
+    def notify_slack(
+        self,
+        test_change_points: Dict[str, AnalyzedSeries],
+        selector: DataSelector,
+        channels: List[str],
+    ):
         if not self.__slack:
             logging.error(
                 "Slack definition is missing from the configuration, cannot send notification"
             )
             return
-        self.__slack.notify(test_change_points, selector=selector)
+        self.__slack.notify(test_change_points, selector=selector, channels=channels)
 
     def validate(self):
         valid = True
@@ -467,8 +473,8 @@ def main():
     )
     analyze_parser.add_argument(
         "--notify-slack",
-        help="Send notification to Slack channel declared in configuration containing a summary of change points",
-        action="store_true",
+        help="Send notification containing a summary of change points to given Slack channels",
+        nargs="+",
     )
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
@@ -509,7 +515,7 @@ def main():
 
         if args.command == "analyze":
             update_grafana_flag = args.update_grafana
-            notify_slack_flag = args.notify_slack
+            slack_notification_channels = args.notify_slack
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
             tests = hunter.get_tests(*args.tests)
@@ -521,7 +527,7 @@ def main():
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
                         hunter.update_grafana_annotations(test, analyzed_series)
-                    if notify_slack_flag:
+                    if slack_notification_channels:
                         tests_analyzed_series[test.name] = analyzed_series
                 except DataImportError as err:
                     logging.error(err.message)
@@ -529,8 +535,12 @@ def main():
                     logging.error(
                         f"Failed to update grafana dashboards for {test.name}: {err.message}"
                     )
-            if notify_slack_flag:
-                hunter.notify_slack(tests_analyzed_series, selector=data_selector)
+            if slack_notification_channels:
+                hunter.notify_slack(
+                    tests_analyzed_series,
+                    selector=data_selector,
+                    channels=slack_notification_channels,
+                )
 
         if args.command == "regressions":
             data_selector = data_selector_from_args(args)

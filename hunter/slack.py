@@ -17,7 +17,6 @@ class NotificationError(Exception):
 
 @dataclass
 class SlackConfig:
-    channel: str
     bot_token: str
 
 
@@ -190,13 +189,16 @@ class SlackNotification:
 
 class SlackNotifier:
     __client: WebClient
-    __channel: str
 
-    def __init__(self, conf: SlackConfig):
-        self.__client = WebClient(token=conf.bot_token)
-        self.__channel = conf.channel
+    def __init__(self, client: WebClient):
+        self.__client = client
 
-    def notify(self, test_analyzed_series: Dict[str, AnalyzedSeries], selector: DataSelector):
+    def notify(
+        self,
+        test_analyzed_series: Dict[str, AnalyzedSeries],
+        selector: DataSelector,
+        channels: List[str],
+    ):
         dispatches = SlackNotification(
             test_analyzed_series, data_selection_description=selector.get_selection_description()
         ).create_dispatches()
@@ -204,5 +206,6 @@ class SlackNotifier:
             raise NotificationError(
                 "Change point summary would produce too many Slack notifications"
             )
-        for blocks in dispatches:
-            self.__client.chat_postMessage(channel=self.__channel, blocks=blocks)
+        for channel in channels:
+            for blocks in dispatches:
+                self.__client.chat_postMessage(channel=channel, blocks=blocks)

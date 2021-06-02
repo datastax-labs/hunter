@@ -98,7 +98,6 @@ def load_config_from(config_file: Path) -> Config:
             if not config["slack"]["token"]:
                 raise ValueError("slack.token")
             slack_config = SlackConfig(
-                channel=config["slack"]["channel"],
                 bot_token=config["slack"]["token"],
             )
 
