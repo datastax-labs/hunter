@@ -11,6 +11,9 @@ from hunter.util import interpolate
 class TestConfig:
     name: str
 
+    def fully_qualified_metric_names(self):
+        raise NotImplementedError
+
 
 @dataclass
 class TestConfigError(Exception):
@@ -48,6 +51,9 @@ class CsvTestConfig(TestConfig):
         self.time_column = time_column
         self.metrics = {m.name: m for m in metrics} if metrics else {}
         self.attributes = attributes if attributes else {}
+
+    def fully_qualified_metric_names(self) -> List[str]:
+        return list(self.metrics.keys())
 
 
 @dataclass
@@ -101,6 +107,8 @@ class GraphiteTestConfig(TestConfig):
         else:
             return self.prefix + "." + metric.suffix
 
+    def fully_qualified_metric_names(self):
+        return [f"{self.prefix}.{m.suffix}" for _, m in self.metrics.items()]
 
 def create_test_config(name: str, config: Dict) -> TestConfig:
     """

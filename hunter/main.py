@@ -291,17 +291,26 @@ class Hunter:
 
     def validate(self):
         valid = True
+        unique_metrics = set()
         for name, test in self.__conf.tests.items():
             logging.info("Checking {}".format(name))
+            test_metrics = test.fully_qualified_metric_names()
+            for test_metric in test_metrics:
+                if test_metric not in unique_metrics:
+                    unique_metrics.add(test_metric)
+                else:
+                    valid = False
+                    logging.error(f"Found duplicated metric: {test_metric}")
             try:
                 importer = self.__importers.get(test)
                 series = importer.fetch_data(test)
                 for metric, metric_data in series.data.items():
                     if not metric_data:
-                        logging.warning("Test metrics does not have data: {} {}".format(name, metric))
+                        logging.warning(f"Test's metric does not have data: {name} {metric}")
             except Exception as err:
-                logging.error("Invalid test definition: {}\n{}\n".format(name, repr(err)))
+                logging.error(f"Invalid test definition: {name}\n{repr(err)}\n")
                 valid = False
+        logging.info(f"Validation finished: {'VALID' if valid else 'INVALID'}")
         if not valid:
             exit(1)
 
