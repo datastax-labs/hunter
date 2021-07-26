@@ -281,13 +281,14 @@ class Hunter:
         test_change_points: Dict[str, AnalyzedSeries],
         selector: DataSelector,
         channels: List[str],
+        since: datetime,
     ):
         if not self.__slack:
             logging.error(
                 "Slack definition is missing from the configuration, cannot send notification"
             )
             return
-        self.__slack.notify(test_change_points, selector=selector, channels=channels)
+        self.__slack.notify(test_change_points, selector=selector, channels=channels, since=since)
 
     def validate(self):
         valid = True
@@ -485,6 +486,12 @@ def main():
         help="Send notification containing a summary of change points to given Slack channels",
         nargs="+",
     )
+    analyze_parser.add_argument(
+        "--cph-report-since",
+        help="Sets a limit on the date range of the Change Point History reported to Slack. Same syntax as --since.",
+        metavar="DATE",
+        dest="cph_report_since",
+    )
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
 
@@ -525,6 +532,7 @@ def main():
         if args.command == "analyze":
             update_grafana_flag = args.update_grafana
             slack_notification_channels = args.notify_slack
+            slack_cph_since = parse_datetime(args.cph_report_since)
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
             tests = hunter.get_tests(*args.tests)
@@ -549,6 +557,7 @@ def main():
                     tests_analyzed_series,
                     selector=data_selector,
                     channels=slack_notification_channels,
+                    since=slack_cph_since,
                 )
 
         if args.command == "regressions":

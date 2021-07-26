@@ -1,6 +1,7 @@
 import json
 
 from datetime import datetime
+from dateutil import tz
 from typing import Dict, List
 
 from hunter.data_selector import DataSelector
@@ -69,14 +70,16 @@ def test_blocks_dispatch():
         attributes={},
     )
     data_selector = DataSelector()
-    data_selector.since_time = datetime(1970, 1, 1)
-    data_selector.until_time = datetime(1970, 1, 1, hour=1)
+    since_time = datetime(1970, 1, 1, tzinfo=tz.UTC)
+    data_selector.since_time = since_time
+    data_selector.until_time = datetime(1970, 1, 1, hour=1, tzinfo=tz.UTC)
     analyzed_series = test.analyze()
     mock_client = DispatchTrackingMockClient()
     notifier = SlackNotifier(client=mock_client)
     notifier.notify(test_analyzed_series={"test": analyzed_series},
                     selector=data_selector,
-                    channels=NOTIFICATION_CHANNELS)
+                    channels=NOTIFICATION_CHANNELS,
+                    since=since_time)
     dispatches = mock_client.dispatches
     assert list(dispatches.keys()) == NOTIFICATION_CHANNELS, "Wrong channels were notified"
     for channel in NOTIFICATION_CHANNELS:

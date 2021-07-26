@@ -23,13 +23,16 @@ class SlackConfig:
 class SlackNotification:
     tests_with_insufficient_data: List[str]
     test_analyzed_series: Dict[str, AnalyzedSeries]
+    since: datetime
 
     def __init__(
         self,
         test_analyzed_series: Dict[str, AnalyzedSeries],
         data_selection_description: str = None,
+        since: datetime = None,
     ):
         self.data_selection_description = data_selection_description
+        self.since = since
         self.tests_with_insufficient_data = []
         self.test_analyzed_series = dict()
         for test, series in test_analyzed_series.items():
@@ -54,11 +57,15 @@ class SlackNotification:
         dispatch = [self.__header()]
         if self.data_selection_description:
             dispatch.append(self.__data_selection_block())
+        if self.since:
+            dispatch.append(self.__report_selection_block())
         return dispatch
 
     def __minimum_dispatch_length(self):
         min = 1  # header
         if self.data_selection_description:
+            min += 1
+        if self.since:
             min += 1
         return min
 
@@ -79,9 +86,10 @@ class SlackNotification:
         dates_change_points = {}
         for test_name, analyzed_series in self.test_analyzed_series.items():
             for group in analyzed_series.change_points_by_time:
-                date_str = str(
-                    datetime.fromtimestamp(group.time, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
-                )
+                cpg_time = datetime.fromtimestamp(group.time, tz=UTC)
+                if self.since and cpg_time < self.since:
+                    continue
+                date_str = self.__datetime_to_str(cpg_time)
                 if date_str not in dates_change_points:
                     dates_change_points[date_str] = {}
                 dates_change_points[date_str][test_name] = group
@@ -105,6 +113,10 @@ class SlackNotification:
         return dispatches
 
     @staticmethod
+    def __datetime_to_str(date: datetime):
+        return str(date.strftime("%Y-%m-%d %H:%M:%S"))
+
+    @staticmethod
     def __block(block_type: str, content: Dict = None):
         block = {"type": block_type}
         if content:
@@ -124,6 +136,12 @@ class SlackNotification:
         )
 
     @classmethod
+    def __fields_section(cls, fields_text):
+        def field_block(text):
+            return {"type": "mrkdwn", "text": text}
+        return cls.__block("section", content={"fields": [field_block(t) for t in fields_text]})
+
+    @classmethod
     def __plain_text_section_block(cls, text):
         return cls.__text_block("section", "plain_text", text)
 
@@ -138,6 +156,9 @@ class SlackNotification:
     def __data_selection_block(self):
         return self.__plain_text_section_block(self.data_selection_description)
 
+    def __report_selection_block(self):
+        return self.__fields_section(["Report Since", self.__datetime_to_str(self.since)])
+
     @classmethod
     def __title_block(cls, name):
         return cls.__text_block("section", "mrkdwn", f"*{name}*")
@@ -145,7 +166,7 @@ class SlackNotification:
     def __dates_change_points_summary(self, test_changes: Dict[str, ChangePointGroup]):
         fields = []
         for test_name, group in test_changes.items():
-            fields.append(self.__block("mrkdwn", content={"text": f"*{test_name}*"}))
+            fields.append(f"*{test_name}*")
             summary = ""
             for change in group.changes:
                 change_percent = change.forward_change_percent()
@@ -158,7 +179,7 @@ class SlackNotification:
                 else:
                     report_percent = round(change_percent)
                 summary += f"{change_emoji} *{change.metric}*: {report_percent}%\n"
-            fields.append(self.__block("mrkdwn", content={"text": summary}))
+            fields.append(summary)
 
         sections = []
         i = 0
@@ -167,14 +188,7 @@ class SlackNotification:
             while len(section_fields) < 10 and i < len(fields):
                 section_fields.append(fields[i])
                 i += 1
-            sections.append(
-                self.__block(
-                    "section",
-                    content={
-                        "fields": section_fields,
-                    },
-                )
-            )
+            sections.append(self.__fields_section(section_fields))
 
         return sections
 
@@ -198,9 +212,12 @@ class SlackNotifier:
         test_analyzed_series: Dict[str, AnalyzedSeries],
         selector: DataSelector,
         channels: List[str],
+        since: datetime,
     ):
         dispatches = SlackNotification(
-            test_analyzed_series, data_selection_description=selector.get_selection_description()
+            test_analyzed_series,
+            data_selection_description=selector.get_selection_description(),
+            since=since,
         ).create_dispatches()
         if len(dispatches) > 3:
             raise NotificationError(
