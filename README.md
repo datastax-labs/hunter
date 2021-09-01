@@ -1,6 +1,9 @@
 Hunter – Hunts Performance Regressions
 ======================================
 
+_This is an unsupported open source project created by Datastax employees._
+
+
 Hunter performs statistical analysis of performance test results stored 
 in CSV files or Graphite database. It finds change-points and notifies about 
 possible performance regressions.  
@@ -351,3 +354,19 @@ $ hunter regressions <test or group> --branch <branch> --last 1
 Please beware that performance validation based on a single data point is quite weak 
 and Hunter might miss a regression if the point is not too much different from
 the baseline. 
+
+## License
+
+Copyright 2021 DataStax Inc
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
