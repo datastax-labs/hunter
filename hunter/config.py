@@ -82,7 +82,7 @@ def load_config_from(config_file: Path) -> Config:
         yaml = YAML(typ="safe")
         config = yaml.load(content)
         """
-        if Grafana configs not explicitly set in yaml file, default to same as Graphite 
+        if Grafana configs not explicitly set in yaml file, default to same as Graphite
         server at port 3000
         """
         graphite_config = None

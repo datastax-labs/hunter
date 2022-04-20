@@ -1,4 +1,3 @@
-import datetime
 import math
 import re
 import sys
@@ -61,8 +60,8 @@ def merge_sorted(lists: List[List[T]]) -> List[T]:
         - output: [0, 1, 2, 3, 4, 5]
     """
     output = set()
-    for l in lists:
-        for item in l:
+    for list_ in lists:
+        for item in list_:
             output.add(item)
 
     output = list(output)
