@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from expandvars import expandvars
 from pathlib import Path
@@ -15,8 +15,8 @@ from hunter.util import merge_dict_list
 
 @dataclass
 class Config:
-    graphite: GraphiteConfig
-    grafana: GrafanaConfig
+    graphite: Optional[GraphiteConfig]
+    grafana: Optional[GrafanaConfig]
     tests: Dict[str, TestConfig]
     test_groups: Dict[str, List[TestConfig]]
     slack: SlackConfig
@@ -85,13 +85,22 @@ def load_config_from(config_file: Path) -> Config:
         if Grafana configs not explicitly set in yaml file, default to same as Graphite 
         server at port 3000
         """
-        if config["graphite"]["url"] is None:
-            raise ValueError("graphite.url")
-        if config.get("grafana") is None:
-            config["gafana"] = {}
-            config["grafana"]["url"] = f"{config['graphite']['url'].strip('/')}:3000/"
-            config["grafana"]["user"] = os.environ.get("GRAFANA_USER", "admin")
-            config["grafana"]["password"] = os.environ.get("GRAFANA_PASSWORD", "admin")
+        graphite_config = None
+        grafana_config = None
+        if "graphite" in config:
+            if "url" not in config["graphite"]:
+                raise ValueError("graphite.url")
+            graphite_config = GraphiteConfig(url=config["graphite"]["url"])
+            if config.get("grafana") is None:
+                config["gafana"] = {}
+                config["grafana"]["url"] = f"{config['graphite']['url'].strip('/')}:3000/"
+                config["grafana"]["user"] = os.environ.get("GRAFANA_USER", "admin")
+                config["grafana"]["password"] = os.environ.get("GRAFANA_PASSWORD", "admin")
+            grafana_config = GrafanaConfig(
+                url=config["grafana"]["url"],
+                user=config["grafana"]["user"],
+                password=config["grafana"]["password"],
+            )
 
         slack_config = None
         if config.get("slack") is not None:
@@ -106,12 +115,8 @@ def load_config_from(config_file: Path) -> Config:
         groups = load_test_groups(config, tests)
 
         return Config(
-            graphite=GraphiteConfig(url=config["graphite"]["url"]),
-            grafana=GrafanaConfig(
-                url=config["grafana"]["url"],
-                user=config["grafana"]["user"],
-                password=config["grafana"]["password"],
-            ),
+            graphite=graphite_config,
+            grafana=grafana_config,
             slack=slack_config,
             tests=tests,
             test_groups=groups,
