@@ -1,0 +1,4 @@
+tests:
+  histostat-sample:
+    type: histostat
+    file: tests/resources/histostat.csv

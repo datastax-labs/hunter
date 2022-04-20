@@ -1,4 +1,5 @@
 import collections
+import os.path
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Set, Optional
@@ -110,6 +111,17 @@ class GraphiteTestConfig(TestConfig):
     def fully_qualified_metric_names(self):
         return [f"{self.prefix}.{m.suffix}" for _, m in self.metrics.items()]
 
+
+@dataclass
+class HistoStatTestConfig(TestConfig):
+    name: str
+    file: str
+
+    def fully_qualified_metric_names(self):
+        from hunter.importer import HistoStatImporter
+        return HistoStatImporter().fetch_all_metric_names(self)
+
+
 def create_test_config(name: str, config: Dict) -> TestConfig:
     """
     Loads properties of a test from a dictionary read from hunter's config file
@@ -122,6 +134,8 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         return create_csv_test_config(name, config)
     elif test_type == "graphite":
         return create_graphite_test_config(name, config)
+    elif test_type == "histostat":
+        return create_histostat_test_config(name, config)
     elif test_type is None:
         raise TestConfigError(f"Test type not set for test {name}")
     else:
@@ -201,3 +215,13 @@ def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfi
         annotate=test_info.get("annotate", []),
         metrics=metrics,
     )
+
+
+def create_histostat_test_config(name: str, test_info: Dict) -> HistoStatTestConfig:
+    try:
+        file = test_info["file"]
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
+    if not os.path.exists(file):
+        raise TestConfigError(f"Configuration referenced histostat file which does not exist: {file}")
+    return HistoStatTestConfig(name, file)

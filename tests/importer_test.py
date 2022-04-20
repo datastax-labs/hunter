@@ -4,8 +4,8 @@ import pytz
 
 from hunter.csv_options import CsvOptions
 from hunter.graphite import DataSelector
-from hunter.importer import CsvImporter
-from hunter.test_config import CsvTestConfig, CsvMetric
+from hunter.importer import CsvImporter, HistoStatImporter
+from hunter.test_config import CsvTestConfig, CsvMetric, HistoStatTestConfig
 
 
 def test_import_csv():
@@ -125,3 +125,21 @@ def test_import_csv_last_n_points():
     assert len(series.time) == 5
     assert len(series.data["m2"]) == 5
     assert len(series.attributes["commit"]) == 5
+
+
+def test_import_histostat():
+    test = HistoStatTestConfig(name="test", file="tests/resources/histostat.csv")
+    importer = HistoStatImporter()
+    series = importer.fetch_data(test)
+    assert len(series.time) == 3
+    assert len(series.data["initialize.result-success.count"]) == 3
+
+
+def test_import_histostat_last_n_points():
+    test = HistoStatTestConfig(name="test", file="tests/resources/histostat.csv")
+    importer = HistoStatImporter()
+    selector = DataSelector()
+    selector.last_n_points = 2
+    series = importer.fetch_data(test, selector=selector)
+    assert len(series.time) == 2
+    assert len(series.data["initialize.result-success.count"]) == 2

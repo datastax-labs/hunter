@@ -1,5 +1,6 @@
 import csv
 from collections import OrderedDict
+from contextlib import contextmanager
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from hunter.csv_options import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
 from hunter.series import Series, Metric
-from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig, CsvMetric
+from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig, CsvMetric, HistoStatTestConfig
 from hunter.util import (
     merge_sorted,
     parse_datetime,
@@ -314,15 +315,125 @@ class CsvImporter(Importer):
         return [m for m in test_conf.metrics.keys()]
 
 
+class HistoStatImporter(Importer):
+
+    __TAG_METRICS = {
+        "count": {"direction": 1, "scale": "1", "col": 3},
+        "min": {"direction": -1, "scale": "1.0e-6", "col": 4},
+        "p25": {"direction": -1, "scale": "1.0e-6", "col": 5},
+        "p50": {"direction": -1, "scale": "1.0e-6", "col": 6},
+        "p75": {"direction": -1, "scale": "1.0e-6", "col": 7},
+        "p90": {"direction": -1, "scale": "1.0e-6", "col": 8},
+        "p95": {"direction": -1, "scale": "1.0e-6", "col": 9},
+        "p98": {"direction": -1, "scale": "1.0e-6", "col": 10},
+        "p99": {"direction": -1, "scale": "1.0e-6", "col": 11},
+        "p999": {"direction": -1, "scale": "1.0e-6", "col": 12},
+        "p9999": {"direction": -1, "scale": "1.0e-6", "col": 13},
+        "max": {"direction": -1, "scale": "1.0e-6", "col": 14},
+    }
+
+    @contextmanager
+    def __csv_reader(self, test: HistoStatTestConfig):
+        with open(Path(test.file), newline="") as csv_file:
+            yield csv.reader(csv_file)
+
+    @staticmethod
+    def __parse_tag(tag: str):
+        return tag.split("=")[1]
+
+    def __get_tags(self, test: HistoStatTestConfig) -> List[str]:
+        tags = set()
+        with self.__csv_reader(test) as reader:
+            for row in reader:
+                if row[0].startswith("#"):
+                    continue
+                tag = self.__parse_tag(row[0])
+                if tag in tags:
+                    break
+                tags.add(tag)
+        return list(tags)
+
+    @staticmethod
+    def __metric_from_components(tag, tag_metric):
+        return f"{tag}.{tag_metric}"
+
+    @staticmethod
+    def __convert_floating_point_millisecond(fpm: str) -> int:  # to epoch seconds
+        return int(float(fpm) * 1000) // 1000
+
+    def fetch_data(self, test: HistoStatTestConfig, selector: DataSelector = DataSelector()) -> Series:
+        def selected(metric_name):
+            return metric_name in selector.metrics if selector.metrics is not None else True
+
+        metrics = {}
+        tag_count = 0
+        for tag in self.__get_tags(test):
+            tag_count += 1
+            for tag_metric, attrs in self.__TAG_METRICS.items():
+                if selected(self.__metric_from_components(tag, tag_metric)):
+                    metrics[self.__metric_from_components(tag, tag_metric)] = Metric(attrs["direction"], attrs["scale"])
+
+        data = {k: [] for k in metrics.keys()}
+        time = []
+        with self.__csv_reader(test) as reader:
+            start_time = None
+            for row in reader:
+                if not row[0].startswith("#"):
+                    break
+                if "StartTime" in row[0]:
+                    parts = row[0].split(" ")
+                    start_time = self.__convert_floating_point_millisecond(parts[1])
+
+            if not start_time:
+                raise DataImportError("No Start Time specified in HistoStat CSV comment")
+
+            # Last iteration of row is the first non-comment row. Parse it now.
+            tag_interval = 0
+            while row:
+                if tag_interval % tag_count == 0:
+                    # Introduces a slight inaccuracy - each tag can report its interval start time
+                    # with some millisecond difference. Choosing a single tag interval allows us
+                    # to maintain the 'indexed by a single time variable' contract required by
+                    # Series, but the time reported for almost all metrics will be _slightly_ off.
+                    time.append(self.__convert_floating_point_millisecond(row[1]) + start_time)
+                tag_interval += 1
+                tag = self.__parse_tag(row[0])
+                for tag_metric, attrs in self.__TAG_METRICS.items():
+                    if selected(self.__metric_from_components(tag, tag_metric)):
+                        data[self.__metric_from_components(tag, tag_metric)].append(float(row[attrs["col"]]))
+                try:
+                    row = next(reader)
+                except StopIteration:
+                    row = None
+
+        # Leave last n points:
+        time = time[-selector.last_n_points:]
+        tmp = data
+        data = {}
+        for k, v in tmp.items():
+            data[k] = v[-selector.last_n_points:]
+
+        return Series(test.name, None, time, metrics, data, dict())
+
+    def fetch_all_metric_names(self, test: HistoStatTestConfig) -> List[str]:
+        metric_names = []
+        for tag in self.__get_tags(test):
+            for tag_metric in self.__TAG_METRICS.keys():
+                metric_names.append(self.__metric_from_components(tag, tag_metric))
+        return metric_names
+
+
 class Importers:
     __config: Config
     __csv_importer: Optional[CsvImporter]
     __graphite_importer: Optional[GraphiteImporter]
+    __histostat_importer: Optional[HistoStatImporter]
 
     def __init__(self, config: Config):
         self.__config = config
         self.__csv_importer = None
         self.__graphite_importer = None
+        self.__histostat_importer = None
 
     def csv_importer(self) -> CsvImporter:
         if self.__csv_importer is None:
@@ -334,10 +445,17 @@ class Importers:
             self.__graphite_importer = GraphiteImporter(Graphite(self.__config.graphite))
         return self.__graphite_importer
 
+    def histostat_importer(self) -> HistoStatImporter:
+        if self.__histostat_importer is None:
+            self.__histostat_importer = HistoStatImporter()
+        return self.__histostat_importer
+
     def get(self, test: TestConfig) -> Importer:
         if isinstance(test, CsvTestConfig):
             return self.csv_importer()
         elif isinstance(test, GraphiteTestConfig):
             return self.graphite_importer()
+        elif isinstance(test, HistoStatTestConfig):
+            return self.histostat_importer()
         else:
             raise ValueError(f"Unsupported test type {type(test)}")
