@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from hunter.config import load_config_from
-from hunter.test_config import GraphiteTestConfig, CsvTestConfig, HistoStatTestConfig
+from hunter.test_config import CsvTestConfig, GraphiteTestConfig, HistoStatTestConfig
 
 
 def test_load_graphite_tests():

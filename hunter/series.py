@@ -2,15 +2,15 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import groupby
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 
 from hunter.analysis import (
-    fill_missing,
-    compute_change_points,
     ComparativeStats,
     TTestSignificanceTester,
+    compute_change_points,
+    fill_missing,
 )
 
 

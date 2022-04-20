@@ -1,7 +1,7 @@
 import time
 from random import random
 
-from hunter.series import Series, AnalysisOptions, compare, Metric
+from hunter.series import AnalysisOptions, Metric, Series, compare
 
 
 def test_change_point_detection():

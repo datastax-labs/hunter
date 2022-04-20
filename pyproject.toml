@@ -24,6 +24,8 @@ pytz = "2021.1"
 tox = "^3.25.0"
 black = "^22.3.0"
 flake8 = "^4.0.1"
+autoflake = "^1.4"
+isort = "^5.10.1"
 
 [tool.pytest.ini_options]
 filterwarnings = [
@@ -36,6 +38,9 @@ hunter = 'hunter.main:main'
 
 [tool.black]
 line-length = 100
+
+[tool.isort]
+profile = "black"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

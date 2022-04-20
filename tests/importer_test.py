@@ -5,7 +5,7 @@ import pytz
 from hunter.csv_options import CsvOptions
 from hunter.graphite import DataSelector
 from hunter.importer import CsvImporter, HistoStatImporter
-from hunter.test_config import CsvTestConfig, CsvMetric, HistoStatTestConfig
+from hunter.test_config import CsvMetric, CsvTestConfig, HistoStatTestConfig
 
 SAMPLE_CSV = "tests/resources/sample.csv"
 

@@ -4,24 +4,24 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 from hunter.config import Config
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
-from hunter.series import Series, Metric
+from hunter.series import Metric, Series
 from hunter.test_config import (
-    CsvTestConfig,
-    TestConfig,
-    GraphiteTestConfig,
     CsvMetric,
+    CsvTestConfig,
+    GraphiteTestConfig,
     HistoStatTestConfig,
+    TestConfig,
 )
 from hunter.util import (
-    merge_sorted,
-    parse_datetime,
     DateFormatError,
     format_timestamp,
+    merge_sorted,
+    parse_datetime,
     resolution,
     round,
 )

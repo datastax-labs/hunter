@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable, Reversible
-from typing import List
+from typing import Iterable, List, Reversible
 
 import numpy as np
 from scipy.stats import ttest_ind_from_stats

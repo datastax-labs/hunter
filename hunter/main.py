@@ -4,27 +4,23 @@ import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 import pytz
 from slack_sdk import WebClient
 
 from hunter import config
 from hunter.attributes import get_back_links
-from hunter.config import ConfigError, Config
+from hunter.config import Config, ConfigError
 from hunter.data_selector import DataSelector
-from hunter.grafana import GrafanaError, Grafana, Annotation
+from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
 from hunter.report import Report, ReportType
-from hunter.series import (
-    AnalysisOptions,
-    compare,
-    AnalyzedSeries,
-)
-from hunter.slack import SlackNotifier, NotificationError
-from hunter.test_config import TestConfigError, TestConfig, GraphiteTestConfig
-from hunter.util import parse_datetime, DateFormatError, interpolate
+from hunter.series import AnalysisOptions, AnalyzedSeries, compare
+from hunter.slack import NotificationError, SlackNotifier
+from hunter.test_config import GraphiteTestConfig, TestConfig, TestConfigError
+from hunter.util import DateFormatError, interpolate, parse_datetime
 
 
 @dataclass

@@ -1,12 +1,12 @@
 import math
 import re
 import sys
-from collections import deque, OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import datetime
 from functools import reduce
 from itertools import islice
-from typing import List, TypeVar, Optional, Dict, Set
+from typing import Dict, List, Optional, Set, TypeVar
 
 import dateparser
 from pytz import UTC

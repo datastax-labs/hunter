@@ -1,11 +1,11 @@
 from hunter.util import (
+    insert_multiple,
+    interpolate,
+    merge_dict_list,
+    merge_dicts,
     merge_sorted,
     remove_common_prefix,
-    insert_multiple,
     sliding_window,
-    merge_dicts,
-    merge_dict_list,
-    interpolate,
 )
 
 
