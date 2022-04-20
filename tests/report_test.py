@@ -54,24 +54,8 @@ def test_json_report(report):
     obj = json.loads(output)
     expected = {
         "test_name_from_config": [
-            {
-                "time": 4,
-                "changes": [
-                    {
-                        "metric": "series2",
-                        "forward_change_percent": "-11"
-                    }
-                ]
-            },
-            {
-                "time": 6,
-                "changes": [
-                    {
-                        "metric": "series1",
-                        "forward_change_percent": "-49"
-                    }
-                ]
-            }
+            {"time": 4, "changes": [{"metric": "series2", "forward_change_percent": "-11"}]},
+            {"time": 6, "changes": [{"metric": "series1", "forward_change_percent": "-49"}]},
         ]
     }
     assert isinstance(obj, dict)

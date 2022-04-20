@@ -37,6 +37,7 @@ class Report:
             return self.__format_json(test_name)
         else:
             from hunter.main import HunterError
+
             raise HunterError(f"Unknown report type: {report_type}")
 
     def __format_log(self) -> str:
@@ -81,4 +82,5 @@ class Report:
 
     def __format_json(self, test_name: str) -> str:
         import json
+
         return json.dumps({test_name: [cpg.to_json() for cpg in self.__change_points]})

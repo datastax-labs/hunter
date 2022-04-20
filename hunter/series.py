@@ -75,10 +75,7 @@ class ChangePointGroup:
     changes: List[ChangePoint]
 
     def to_json(self):
-        return {
-            "time": self.time,
-            "changes": [cp.to_json() for cp in self.changes]
-        }
+        return {"time": self.time, "changes": [cp.to_json() for cp in self.changes]}
 
 
 class Series:
@@ -127,7 +124,7 @@ class Series:
         return None
 
     def find_by_attribute(self, name: str, value: str) -> List[int]:
-        """ Returns the indexes of data points with given attribute value """
+        """Returns the indexes of data points with given attribute value"""
         result = []
         for i in range(len(self.time)):
             if self.attributes_at(i).get(name) == value:

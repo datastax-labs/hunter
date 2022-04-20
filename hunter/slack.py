@@ -139,6 +139,7 @@ class SlackNotification:
     def __fields_section(cls, fields_text):
         def field_block(text):
             return {"type": "mrkdwn", "text": text}
+
         return cls.__block("section", content={"fields": [field_block(t) for t in fields_text]})
 
     @classmethod

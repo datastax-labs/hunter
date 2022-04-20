@@ -119,6 +119,7 @@ class HistoStatTestConfig(TestConfig):
 
     def fully_qualified_metric_names(self):
         from hunter.importer import HistoStatImporter
+
         return HistoStatImporter().fetch_all_metric_names(self)
 
 
@@ -223,5 +224,7 @@ def create_histostat_test_config(name: str, test_info: Dict) -> HistoStatTestCon
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
     if not os.path.exists(file):
-        raise TestConfigError(f"Configuration referenced histostat file which does not exist: {file}")
+        raise TestConfigError(
+            f"Configuration referenced histostat file which does not exist: {file}"
+        )
     return HistoStatTestConfig(name, file)

@@ -1,4 +1,12 @@
-from hunter.util import *
+from hunter.util import (
+    merge_sorted,
+    remove_common_prefix,
+    insert_multiple,
+    sliding_window,
+    merge_dicts,
+    merge_dict_list,
+    interpolate,
+)
 
 
 def test_merge_sorted():

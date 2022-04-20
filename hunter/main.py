@@ -91,7 +91,11 @@ class Hunter:
             print(metric_name)
 
     def analyze(
-        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions, report_type: ReportType,
+        self,
+        test: TestConfig,
+        selector: DataSelector,
+        options: AnalysisOptions,
+        report_type: ReportType,
     ) -> AnalyzedSeries:
         importer = self.__importers.get(test)
         series = importer.fetch_data(test, selector)
@@ -378,7 +382,7 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         type=int,
         metavar="COUNT",
         dest="last_n_points",
-        help="the number of data points to take from the end of the series"
+        help="the number of data points to take from the end of the series",
     )
 
 
@@ -492,9 +496,14 @@ def main():
         metavar="DATE",
         dest="cph_report_since",
     )
-    analyze_parser.add_argument("--output", help="Output format for the generated report.",
-                                choices=list(ReportType), dest="report_type", default=ReportType.LOG,
-                                type=ReportType)
+    analyze_parser.add_argument(
+        "--output",
+        help="Output format for the generated report.",
+        choices=list(ReportType),
+        dest="report_type",
+        default=ReportType.LOG,
+        type=ReportType,
+    )
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
 
@@ -513,8 +522,9 @@ def main():
         "--force", help="don't ask questions, just do it", dest="force", action="store_true"
     )
 
-    validate_parser = subparsers.add_parser("validate",
-                                            help="validates the tests and metrics defined in the configuration")
+    validate_parser = subparsers.add_parser(
+        "validate", help="validates the tests and metrics defined in the configuration"
+    )
 
     try:
         args = parser.parse_args()
@@ -543,7 +553,9 @@ def main():
             tests_analyzed_series = {test.name: None for test in tests}
             for test in tests:
                 try:
-                    analyzed_series = hunter.analyze(test, selector=data_selector, options=options, report_type=report_type)
+                    analyzed_series = hunter.analyze(
+                        test, selector=data_selector, options=options, report_type=report_type
+                    )
                     if update_grafana_flag:
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
@@ -572,9 +584,7 @@ def main():
             errors = 0
             for test in tests:
                 try:
-                    regressions = hunter.regressions(
-                        test, selector=data_selector, options=options
-                    )
+                    regressions = hunter.regressions(test, selector=data_selector, options=options)
                     if regressions:
                         regressing_test_count += 1
                 except HunterError as err:

@@ -12,7 +12,13 @@ from hunter.csv_options import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
 from hunter.series import Series, Metric
-from hunter.test_config import CsvTestConfig, TestConfig, GraphiteTestConfig, CsvMetric, HistoStatTestConfig
+from hunter.test_config import (
+    CsvTestConfig,
+    TestConfig,
+    GraphiteTestConfig,
+    CsvMetric,
+    HistoStatTestConfig,
+)
 from hunter.util import (
     merge_sorted,
     parse_datetime,
@@ -108,7 +114,7 @@ class GraphiteImporter(Importer):
                 raise DataImportError(f"No timeseries found in Graphite for test {test.name}.")
 
             times = [[x.time for x in series.points] for series in graphite_result]
-            time: List[int] = merge_sorted(times)[-selector.last_n_points:]
+            time: List[int] = merge_sorted(times)[-selector.last_n_points :]
 
             def column(series: List[DataPoint]) -> List[float]:
                 value_by_time = dict([(x.time, x.value) for x in series])
@@ -282,15 +288,15 @@ class CsvImporter(Importer):
                 metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
 
                 # Leave last n points:
-                time = time[-selector.last_n_points:]
+                time = time[-selector.last_n_points :]
                 tmp = data
                 data = {}
                 for k, v in tmp.items():
-                    data[k] = v[-selector.last_n_points:]
+                    data[k] = v[-selector.last_n_points :]
                 tmp = attributes
                 attributes = {}
                 for k, v in tmp.items():
-                    attributes[k] = v[-selector.last_n_points:]
+                    attributes[k] = v[-selector.last_n_points :]
 
                 return Series(
                     test_conf.name,
@@ -361,7 +367,9 @@ class HistoStatImporter(Importer):
     def __convert_floating_point_millisecond(fpm: str) -> int:  # to epoch seconds
         return int(float(fpm) * 1000) // 1000
 
-    def fetch_data(self, test: HistoStatTestConfig, selector: DataSelector = DataSelector()) -> Series:
+    def fetch_data(
+        self, test: HistoStatTestConfig, selector: DataSelector = DataSelector()
+    ) -> Series:
         def selected(metric_name):
             return metric_name in selector.metrics if selector.metrics is not None else True
 
@@ -371,7 +379,9 @@ class HistoStatImporter(Importer):
             tag_count += 1
             for tag_metric, attrs in self.__TAG_METRICS.items():
                 if selected(self.__metric_from_components(tag, tag_metric)):
-                    metrics[self.__metric_from_components(tag, tag_metric)] = Metric(attrs["direction"], attrs["scale"])
+                    metrics[self.__metric_from_components(tag, tag_metric)] = Metric(
+                        attrs["direction"], attrs["scale"]
+                    )
 
         data = {k: [] for k in metrics.keys()}
         time = []
@@ -400,18 +410,20 @@ class HistoStatImporter(Importer):
                 tag = self.__parse_tag(row[0])
                 for tag_metric, attrs in self.__TAG_METRICS.items():
                     if selected(self.__metric_from_components(tag, tag_metric)):
-                        data[self.__metric_from_components(tag, tag_metric)].append(float(row[attrs["col"]]))
+                        data[self.__metric_from_components(tag, tag_metric)].append(
+                            float(row[attrs["col"]])
+                        )
                 try:
                     row = next(reader)
                 except StopIteration:
                     row = None
 
         # Leave last n points:
-        time = time[-selector.last_n_points:]
+        time = time[-selector.last_n_points :]
         tmp = data
         data = {}
         for k, v in tmp.items():
-            data[k] = v[-selector.last_n_points:]
+            data[k] = v[-selector.last_n_points :]
 
         return Series(test.name, None, time, metrics, data, dict())
 

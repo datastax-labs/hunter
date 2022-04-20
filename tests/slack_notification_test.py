@@ -15,7 +15,7 @@ NOTIFICATION_CHANNELS = ["a-channel", "b-channel"]
 class DispatchTrackingMockClient:
     dispatches: Dict[str, List[List[object]]] = dict()
 
-    def chat_postMessage(self, channel: str=None, blocks: List[object]=None):
+    def chat_postMessage(self, channel: str = None, blocks: List[object] = None):
         if not channel or not blocks:
             raise NotificationError(f"Invalid dispatch: {channel} {blocks}")
         if channel not in self.dispatches:
@@ -76,10 +76,12 @@ def test_blocks_dispatch():
     analyzed_series = test.analyze()
     mock_client = DispatchTrackingMockClient()
     notifier = SlackNotifier(client=mock_client)
-    notifier.notify(test_analyzed_series={"test": analyzed_series},
-                    selector=data_selector,
-                    channels=NOTIFICATION_CHANNELS,
-                    since=since_time)
+    notifier.notify(
+        test_analyzed_series={"test": analyzed_series},
+        selector=data_selector,
+        channels=NOTIFICATION_CHANNELS,
+        since=since_time,
+    )
     dispatches = mock_client.dispatches
     assert list(dispatches.keys()) == NOTIFICATION_CHANNELS, "Wrong channels were notified"
     for channel in NOTIFICATION_CHANNELS:
