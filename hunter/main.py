@@ -189,10 +189,10 @@ class Hunter:
         if test:
             logging.info(f"Fetching Grafana annotations for test {test.name}...")
         else:
-            logging.info(f"Fetching Grafana annotations...")
+            logging.info("Fetching Grafana annotations...")
         tags_to_query = {"hunter", "change-point"}
         if test:
-            tags_to_query.add("test:" + test.name)
+            tags_to_query.add(f"test: {test.name}")
         annotations = grafana.fetch_annotations(None, None, list(tags_to_query))
         if not annotations:
             logging.info("No annotations found.")
@@ -519,7 +519,7 @@ def main():
         "--force", help="don't ask questions, just do it", dest="force", action="store_true"
     )
 
-    validate_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "validate", help="validates the tests and metrics defined in the configuration"
     )
 
@@ -555,7 +555,7 @@ def main():
                     )
                     if update_grafana_flag:
                         if not isinstance(test, GraphiteTestConfig):
-                            raise GrafanaError(f"Not a Graphite test")
+                            raise GrafanaError("Not a Graphite test")
                         hunter.update_grafana_annotations(test, analyzed_series)
                     if slack_notification_channels:
                         tests_analyzed_series[test.name] = analyzed_series
@@ -597,7 +597,7 @@ def main():
             else:
                 print(f"Regressions in {regressing_test_count} tests found")
             if errors > 0:
-                print(f"Some tests were skipped due to import / analyze errors. Consult error log.")
+                print("Some tests were skipped due to import / analyze errors. Consult error log.")
 
         if args.command == "remove-annotations":
             if args.tests:

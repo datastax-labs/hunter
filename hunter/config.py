@@ -30,14 +30,14 @@ class ConfigError(Exception):
 def load_templates(config: Dict) -> Dict[str, Dict]:
     templates = config.get("templates", {})
     if not isinstance(templates, Dict):
-        raise ConfigError(f"Property `templates` is not a dictionary")
+        raise ConfigError("Property `templates` is not a dictionary")
     return templates
 
 
 def load_tests(config: Dict, templates: Dict) -> Dict[str, TestConfig]:
     tests = config.get("tests", {})
     if not isinstance(tests, Dict):
-        raise ConfigError(f"Property `tests` is not a dictionary")
+        raise ConfigError("Property `tests` is not a dictionary")
 
     result = {}
     for (test_name, test_config) in tests.items():
@@ -57,7 +57,7 @@ def load_tests(config: Dict, templates: Dict) -> Dict[str, TestConfig]:
 def load_test_groups(config: Dict, tests: Dict[str, TestConfig]) -> Dict[str, List[TestConfig]]:
     groups = config.get("test_groups", {})
     if not isinstance(groups, Dict):
-        raise ConfigError(f"Property `test_groups` is not a dictionary")
+        raise ConfigError("Property `test_groups` is not a dictionary")
 
     result = {}
     for (group_name, test_names) in groups.items():
@@ -92,7 +92,7 @@ def load_config_from(config_file: Path) -> Config:
                 raise ValueError("graphite.url")
             graphite_config = GraphiteConfig(url=config["graphite"]["url"])
             if config.get("grafana") is None:
-                config["gafana"] = {}
+                config["grafana"] = {}
                 config["grafana"]["url"] = f"{config['graphite']['url'].strip('/')}:3000/"
                 config["grafana"]["user"] = os.environ.get("GRAFANA_USER", "admin")
                 config["grafana"]["password"] = os.environ.get("GRAFANA_PASSWORD", "admin")
