@@ -56,6 +56,12 @@ class ChangePoint:
     def magnitude(self):
         return self.stats.change_magnitude()
 
+    def to_json(self):
+        return {
+            "metric": self.metric,
+            "forward_change_percent": f"{self.forward_change_percent():.0f}",
+        }
+
 
 @dataclass
 class ChangePointGroup:
@@ -67,6 +73,12 @@ class ChangePointGroup:
     attributes: Dict[str, str]
     prev_attributes: Dict[str, str]
     changes: List[ChangePoint]
+
+    def to_json(self):
+        return {
+            "time": self.time,
+            "changes": [cp.to_json() for cp in self.changes]
+        }
 
 
 class Series:

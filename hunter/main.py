@@ -17,7 +17,7 @@ from hunter.data_selector import DataSelector
 from hunter.grafana import GrafanaError, Grafana, Annotation
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
-from hunter.report import Report
+from hunter.report import Report, ReportType
 from hunter.series import (
     AnalysisOptions,
     ChangePointGroup,
@@ -91,15 +91,15 @@ class Hunter:
             print(metric_name)
 
     def analyze(
-        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
+        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions, report_type: ReportType,
     ) -> AnalyzedSeries:
         importer = self.__importers.get(test)
         series = importer.fetch_data(test, selector)
         analyzed_series = series.analyze(options)
         change_points = analyzed_series.change_points_by_time
         report = Report(series, change_points)
-        print(test.name + ":")
-        print(report.format_log_annotated())
+        produced_report = report.produce_report(test.name, report_type)
+        print(produced_report)
         return analyzed_series
 
     def __get_grafana(self) -> Grafana:
@@ -492,6 +492,9 @@ def main():
         metavar="DATE",
         dest="cph_report_since",
     )
+    analyze_parser.add_argument("--output", help="Output format for the generated report.",
+                                choices=list(ReportType), dest="report_type", default=ReportType.LOG,
+                                type=ReportType)
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
 
@@ -535,11 +538,12 @@ def main():
             slack_cph_since = parse_datetime(args.cph_report_since)
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
+            report_type = args.report_type
             tests = hunter.get_tests(*args.tests)
             tests_analyzed_series = {test.name: None for test in tests}
             for test in tests:
                 try:
-                    analyzed_series = hunter.analyze(test, selector=data_selector, options=options)
+                    analyzed_series = hunter.analyze(test, selector=data_selector, options=options, report_type=report_type)
                     if update_grafana_flag:
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError(f"Not a Graphite test")
