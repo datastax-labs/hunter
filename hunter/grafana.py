@@ -1,13 +1,10 @@
-import re
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from typing import List, Optional
 
 import requests
-
-from dataclasses import asdict, dataclass
-
 from pytz import UTC
 from requests.exceptions import HTTPError
-from typing import List, Optional
 
 
 @dataclass

@@ -3,8 +3,8 @@ from datetime import datetime
 from math import isinf
 from typing import Dict, List
 
-from slack_sdk import WebClient
 from pytz import UTC
+from slack_sdk import WebClient
 
 from hunter.data_selector import DataSelector
 from hunter.series import ChangePointGroup, AnalyzedSeries

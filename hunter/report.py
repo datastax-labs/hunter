@@ -1,4 +1,3 @@
-import dataclasses
 from collections import OrderedDict
 from enum import Enum, unique
 from typing import List

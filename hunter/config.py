@@ -1,9 +1,9 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from expandvars import expandvars
-from pathlib import Path
 from ruamel.yaml import YAML
 
 from hunter.grafana import GrafanaConfig

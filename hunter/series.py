@@ -2,7 +2,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import groupby
-from typing import Dict, List, Optional, Iterable, OrderedDict
+from typing import Dict, List, Optional, Iterable
+
+import numpy as np
 
 from hunter.analysis import (
     fill_missing,
@@ -10,8 +12,6 @@ from hunter.analysis import (
     ComparativeStats,
     TTestSignificanceTester,
 )
-
-import numpy as np
 
 
 @dataclass

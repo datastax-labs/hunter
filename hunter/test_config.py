@@ -1,8 +1,6 @@
-import collections
 import os.path
-from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Optional
 
 from hunter.csv_options import CsvOptions
 from hunter.util import interpolate

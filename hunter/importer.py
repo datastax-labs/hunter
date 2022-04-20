@@ -1,14 +1,12 @@
 import csv
 from collections import OrderedDict
 from contextlib import contextmanager
-
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict
 
 from hunter.config import Config
-from hunter.csv_options import CsvColumnType, CsvOptions
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
 from hunter.series import Series, Metric
@@ -26,8 +24,6 @@ from hunter.util import (
     format_timestamp,
     resolution,
     round,
-    is_float,
-    is_datetime,
 )
 
 

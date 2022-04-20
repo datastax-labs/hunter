@@ -1,13 +1,12 @@
 import json
-
 from datetime import datetime
-from dateutil import tz
 from typing import Dict, List
+
+from dateutil import tz
 
 from hunter.data_selector import DataSelector
 from hunter.series import Series, Metric
 from hunter.slack import SlackNotifier, NotificationError
-
 
 NOTIFICATION_CHANNELS = ["a-channel", "b-channel"]
 
