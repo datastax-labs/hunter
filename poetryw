@@ -1,0 +1,9 @@
+#!/bin/bash -e
+
+thisdir="$(cd "$(dirname "$0")" && pwd)"
+
+POETRY_VERSION="${POETRY_VERSION:-1.1.13}"
+
+source "ci-tools/wrappers.sh"
+
+install_and_run_tool poetry "poetry==$POETRY_VERSION" "$@"
