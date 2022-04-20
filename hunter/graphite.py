@@ -1,10 +1,9 @@
 import ast
 import json
 import urllib.request
-
 from dataclasses import dataclass
 from datetime import datetime
-from logging import info, warning
+from logging import info
 from typing import Dict, List, Optional, Iterable
 
 from hunter.data_selector import DataSelector

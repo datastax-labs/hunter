@@ -2,7 +2,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import groupby
-from typing import Dict, List, Optional, Iterable, OrderedDict
+from typing import Dict, List, Optional, Iterable
+
+import numpy as np
 
 from hunter.analysis import (
     fill_missing,
@@ -10,8 +12,6 @@ from hunter.analysis import (
     ComparativeStats,
     TTestSignificanceTester,
 )
-
-import numpy as np
 
 
 @dataclass
@@ -56,6 +56,12 @@ class ChangePoint:
     def magnitude(self):
         return self.stats.change_magnitude()
 
+    def to_json(self):
+        return {
+            "metric": self.metric,
+            "forward_change_percent": f"{self.forward_change_percent():.0f}",
+        }
+
 
 @dataclass
 class ChangePointGroup:
@@ -67,6 +73,9 @@ class ChangePointGroup:
     attributes: Dict[str, str]
     prev_attributes: Dict[str, str]
     changes: List[ChangePoint]
+
+    def to_json(self):
+        return {"time": self.time, "changes": [cp.to_json() for cp in self.changes]}
 
 
 class Series:
@@ -115,7 +124,7 @@ class Series:
         return None
 
     def find_by_attribute(self, name: str, value: str) -> List[int]:
-        """ Returns the indexes of data points with given attribute value """
+        """Returns the indexes of data points with given attribute value"""
         result = []
         for i in range(len(self.time)):
             if self.attributes_at(i).get(name) == value:

@@ -4,24 +4,21 @@ import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from slack_sdk import WebClient
 from typing import Dict, Optional, List
 
 import pytz
+from slack_sdk import WebClient
 
 from hunter import config
 from hunter.attributes import get_back_links
 from hunter.config import ConfigError, Config
 from hunter.data_selector import DataSelector
-
 from hunter.grafana import GrafanaError, Grafana, Annotation
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
-from hunter.report import Report
+from hunter.report import Report, ReportType
 from hunter.series import (
     AnalysisOptions,
-    ChangePointGroup,
-    SeriesComparison,
     compare,
     AnalyzedSeries,
 )
@@ -91,15 +88,19 @@ class Hunter:
             print(metric_name)
 
     def analyze(
-        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
+        self,
+        test: TestConfig,
+        selector: DataSelector,
+        options: AnalysisOptions,
+        report_type: ReportType,
     ) -> AnalyzedSeries:
         importer = self.__importers.get(test)
         series = importer.fetch_data(test, selector)
         analyzed_series = series.analyze(options)
         change_points = analyzed_series.change_points_by_time
         report = Report(series, change_points)
-        print(test.name + ":")
-        print(report.format_log_annotated())
+        produced_report = report.produce_report(test.name, report_type)
+        print(produced_report)
         return analyzed_series
 
     def __get_grafana(self) -> Grafana:
@@ -188,10 +189,10 @@ class Hunter:
         if test:
             logging.info(f"Fetching Grafana annotations for test {test.name}...")
         else:
-            logging.info(f"Fetching Grafana annotations...")
+            logging.info("Fetching Grafana annotations...")
         tags_to_query = {"hunter", "change-point"}
         if test:
-            tags_to_query.add("test:" + test.name)
+            tags_to_query.add(f"test: {test.name}")
         annotations = grafana.fetch_annotations(None, None, list(tags_to_query))
         if not annotations:
             logging.info("No annotations found.")
@@ -378,7 +379,7 @@ def setup_data_selector_parser(parser: argparse.ArgumentParser):
         type=int,
         metavar="COUNT",
         dest="last_n_points",
-        help="the number of data points to take from the end of the series"
+        help="the number of data points to take from the end of the series",
     )
 
 
@@ -492,6 +493,14 @@ def main():
         metavar="DATE",
         dest="cph_report_since",
     )
+    analyze_parser.add_argument(
+        "--output",
+        help="Output format for the generated report.",
+        choices=list(ReportType),
+        dest="report_type",
+        default=ReportType.LOG,
+        type=ReportType,
+    )
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
 
@@ -510,8 +519,9 @@ def main():
         "--force", help="don't ask questions, just do it", dest="force", action="store_true"
     )
 
-    validate_parser = subparsers.add_parser("validate",
-                                            help="validates the tests and metrics defined in the configuration")
+    subparsers.add_parser(
+        "validate", help="validates the tests and metrics defined in the configuration"
+    )
 
     try:
         args = parser.parse_args()
@@ -535,14 +545,17 @@ def main():
             slack_cph_since = parse_datetime(args.cph_report_since)
             data_selector = data_selector_from_args(args)
             options = analysis_options_from_args(args)
+            report_type = args.report_type
             tests = hunter.get_tests(*args.tests)
             tests_analyzed_series = {test.name: None for test in tests}
             for test in tests:
                 try:
-                    analyzed_series = hunter.analyze(test, selector=data_selector, options=options)
+                    analyzed_series = hunter.analyze(
+                        test, selector=data_selector, options=options, report_type=report_type
+                    )
                     if update_grafana_flag:
                         if not isinstance(test, GraphiteTestConfig):
-                            raise GrafanaError(f"Not a Graphite test")
+                            raise GrafanaError("Not a Graphite test")
                         hunter.update_grafana_annotations(test, analyzed_series)
                     if slack_notification_channels:
                         tests_analyzed_series[test.name] = analyzed_series
@@ -568,9 +581,7 @@ def main():
             errors = 0
             for test in tests:
                 try:
-                    regressions = hunter.regressions(
-                        test, selector=data_selector, options=options
-                    )
+                    regressions = hunter.regressions(test, selector=data_selector, options=options)
                     if regressions:
                         regressing_test_count += 1
                 except HunterError as err:
@@ -586,7 +597,7 @@ def main():
             else:
                 print(f"Regressions in {regressing_test_count} tests found")
             if errors > 0:
-                print(f"Some tests were skipped due to import / analyze errors. Consult error log.")
+                print("Some tests were skipped due to import / analyze errors. Consult error log.")
 
         if args.command == "remove-annotations":
             if args.tests:

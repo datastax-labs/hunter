@@ -1,7 +1,7 @@
 import sys
 from dataclasses import dataclass
-from typing import List, Optional
 from datetime import datetime, timedelta
+from typing import List, Optional
 
 import pytz
 

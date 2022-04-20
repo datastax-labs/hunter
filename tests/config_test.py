@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from hunter.config import load_config_from
-from hunter.test_config import GraphiteTestConfig, CsvTestConfig
+from hunter.test_config import GraphiteTestConfig, CsvTestConfig, HistoStatTestConfig
 
 
 def test_load_graphite_tests():
@@ -47,3 +47,13 @@ def test_load_test_groups():
     groups = config.test_groups
     assert len(groups) == 2
     assert len(groups["remote"]) == 2
+
+
+def test_load_histostat_config():
+    config = load_config_from(Path("tests/resources/histostat_test_config.yaml"))
+    tests = config.tests
+    assert len(tests) == 1
+    test = tests["histostat-sample"]
+    assert isinstance(test, HistoStatTestConfig)
+    # 14 tags * 12 tag_metrics == 168 unique metrics
+    assert len(test.fully_qualified_metric_names()) == 168
