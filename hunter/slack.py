@@ -7,7 +7,7 @@ from pytz import UTC
 from slack_sdk import WebClient
 
 from hunter.data_selector import DataSelector
-from hunter.series import ChangePointGroup, AnalyzedSeries
+from hunter.series import AnalyzedSeries, ChangePointGroup
 
 
 @dataclass

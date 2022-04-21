@@ -1,0 +1,15 @@
+#!/bin/bash -e
+
+thisdir="$(cd "$(dirname "$0")" && pwd)"
+
+source "$thisdir/ci-tools/wrappers.sh"
+
+requirements="$build_dir/requirements-tox.txt"
+
+test -f $requirements || (
+    mkdir -p "$build_dir"
+    run "$thisdir/poetryw" export --verbose --dev --without-hashes | \
+        grep -E -o 'tox==[0-9\.]+' > "$requirements"
+)
+
+install_and_run_tool tox "-r$requirements" "$@"

@@ -5,8 +5,8 @@ from typing import Dict, List
 from dateutil import tz
 
 from hunter.data_selector import DataSelector
-from hunter.series import Series, Metric
-from hunter.slack import SlackNotifier, NotificationError
+from hunter.series import Metric, Series
+from hunter.slack import NotificationError, SlackNotifier
 
 NOTIFICATION_CHANNELS = ["a-channel", "b-channel"]
 

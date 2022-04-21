@@ -4,7 +4,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from logging import info
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, Iterable, List, Optional
 
 from hunter.data_selector import DataSelector
 from hunter.util import parse_datetime

@@ -4,7 +4,7 @@ from typing import List
 
 from tabulate import tabulate
 
-from hunter.series import Series, ChangePointGroup
+from hunter.series import ChangePointGroup, Series
 from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 
 

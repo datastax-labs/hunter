@@ -1,19 +1,19 @@
 # Setting up for development
 
-* [Install poetry](https://python-poetry.org/docs/#installation)
+* Ensure that `python3` points to a version of python >= 3.8 (`python3 --version` will tell you).  If it does not, use [pyenv](https://github.com/pyenv/pyenv) to both install a recent python version and make it your current python.
 
-* If you want to maintain your own virtualenv, install pyenv and use pyenv virtualenv to create and manage one.  Poetry will automatically find any active virtualenv and use that.
+* There are two wrappers (`poetryw` and `toxw`) that install and run the correct versions of [poetry](https://python-poetry.org) and [tox](https://tox.wiki) for you.
 
 * Run poetry to install dependencies:
 
 ```
-poetry install
+./poetryw install
 ```
 
 * Run the development version of hunter using poetry:
 
 ```
-poetry run hunter ...
+./poetryw run hunter ...
 ```
 
 See the [poetry docs](https://python-poetry.org/docs) for more.
@@ -21,26 +21,26 @@ See the [poetry docs](https://python-poetry.org/docs) for more.
 # Running tests
 
 ```
-poetry run pytest tests
+./poetryw run pytest
 ```
 
 ...or using [tox](https://tox.readthedocs.io/):
 
 ```
-ci-tools/tox-bootstrap
+./toxw
 ```
 
 # Linting and formatting
 
-Code-style is enforced using [black](https://black.readthedocs.io/).  Linting is automatically applied when tox runs tests; if linting fails, you can fix it with:
+Code-style is enforced using [black](https://black.readthedocs.io/) and [flake8](https://flake8.pycqa.org/); import optimisation is handled by [isort](https://pycqa.github.io/isort/) and [autoflake](https://pypi.org/project/autoflake/).  Linting is automatically applied when tox runs tests; if linting fails, you can fix trivial problems with:
 
 ```
-ci-tools/tox-bootstrap -e format
+./toxw -e format
 ```
 
 
 # Build a docker image
 
 ```
-ci-tools/tox-bootstrap -e docker-build
+./toxw -e docker-build
 ```
