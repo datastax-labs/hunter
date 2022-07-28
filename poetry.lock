@@ -128,6 +128,7 @@ calendars = ["hijri-converter", "convertdate"]
 fasttext = ["fasttext"]
 langdetect = ["langdetect"]
 
+
 [[package]]
 name = "decorator"
 version = "5.1.1"
@@ -293,8 +294,16 @@ optional = false
 python-versions = ">=3.8"
 
 [package.extras]
-dev = ["pre-commit", "tox"]
-testing = ["pytest", "pytest-benchmark"]
+testing = ["pytest-benchmark", "pytest"]
+dev = ["tox", "pre-commit"]
+
+[[package]]
+name = "psycopg2-binary"
+version = "2.9.3"
+description = "psycopg2 - Python-PostgreSQL Database Adapter"
+category = "main"
+optional = false
+python-versions = ">=3.6"
 
 [[package]]
 name = "py"
@@ -523,7 +532,6 @@ python-versions = ">=3.7"
 [[package]]
 name = "tox"
 version = "3.28.0"
-description = "tox is a generic virtualenv management and test command line tool"
 category = "dev"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
@@ -665,6 +673,7 @@ packaging = []
 pathspec = []
 platformdirs = []
 pluggy = []
+psycopg2-binary = []
 py = []
 pycodestyle = []
 pyflakes = []
