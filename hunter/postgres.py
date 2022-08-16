@@ -1,6 +1,10 @@
 from dataclasses import dataclass
+from typing import Dict
 
 import psycopg2
+
+from hunter.analysis import ChangePoint
+from hunter.test_config import PostgresTestConfig
 
 
 @dataclass
@@ -10,6 +14,11 @@ class PostgresConfig:
     username: str
     password: str
     database: str
+
+
+@dataclass
+class PostgresError(Exception):
+    message: str
 
 
 class Postgres:
@@ -35,3 +44,22 @@ class Postgres:
         cursor.execute(query)
         columns = [c.name for c in cursor.description]
         return (columns, cursor.fetchall())
+
+    def insert_change_point(
+        self,
+        test: PostgresTestConfig,
+        metric_name: str,
+        attributes: Dict,
+        change_point: ChangePoint,
+    ):
+        cursor = self.__get_conn().cursor()
+        update_stmt = test.update_stmt.format(metric=metric_name, **attributes)
+        cursor.execute(
+            update_stmt,
+            (
+                change_point.forward_change_percent(),
+                change_point.backward_change_percent(),
+                change_point.stats.pvalue,
+            ),
+        )
+        self.__get_conn().commit()
