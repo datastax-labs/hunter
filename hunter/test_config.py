@@ -132,6 +132,7 @@ class PostgresMetric:
 @dataclass
 class PostgresTestConfig(TestConfig):
     query: str
+    update_stmt: str
     time_column: str
     attributes: List[str]
     metrics: Dict[str, PostgresMetric]
@@ -140,6 +141,7 @@ class PostgresTestConfig(TestConfig):
         self,
         name: str,
         query: str,
+        update_stmt: str = "",
         time_column: str = "time",
         metrics: List[PostgresMetric] = None,
         attributes: List[str] = None,
@@ -149,6 +151,7 @@ class PostgresTestConfig(TestConfig):
         self.time_column = time_column
         self.metrics = {m.name: m for m in metrics} if metrics else {}
         self.attributes = attributes
+        self.update_stmt = update_stmt
 
     def fully_qualified_metric_names(self) -> List[str]:
         return list(self.metrics.keys())
@@ -269,6 +272,7 @@ def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTest
         attributes = test_info.get("attributes", [])
         metrics_info = test_info.get("metrics")
         query = test_info["query"]
+        update_stmt = test_info.get("update_statement", "")
 
         metrics = []
         if isinstance(metrics_info, List):
@@ -287,6 +291,6 @@ def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTest
         else:
             raise TestConfigError(f"Metrics of the test {test_name} must be a list or dictionary")
 
-        return PostgresTestConfig(test_name, query, time_column, metrics, attributes)
+        return PostgresTestConfig(test_name, query, update_stmt, time_column, metrics, attributes)
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")

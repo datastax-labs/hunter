@@ -434,7 +434,7 @@ class HistoStatImporter(Importer):
         return metric_names
 
 
-class PostgresImporter:
+class PostgresImporter(Importer):
     __postgres: Postgres
 
     def __init__(self, postgres: Postgres):
