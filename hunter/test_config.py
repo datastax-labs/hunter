@@ -121,12 +121,45 @@ class HistoStatTestConfig(TestConfig):
         return HistoStatImporter().fetch_all_metric_names(self)
 
 
+@dataclass
+class PostgresMetric:
+    name: str
+    direction: int
+    scale: float
+    column: str
+
+
+@dataclass
+class PostgresTestConfig(TestConfig):
+    query: str
+    time_column: str
+    attributes: List[str]
+    metrics: Dict[str, PostgresMetric]
+
+    def __init__(
+        self,
+        name: str,
+        query: str,
+        time_column: str = "time",
+        metrics: List[PostgresMetric] = None,
+        attributes: List[str] = None,
+    ):
+        self.name = name
+        self.query = query
+        self.time_column = time_column
+        self.metrics = {m.name: m for m in metrics} if metrics else {}
+        self.attributes = attributes
+
+    def fully_qualified_metric_names(self) -> List[str]:
+        return list(self.metrics.keys())
+
+
 def create_test_config(name: str, config: Dict) -> TestConfig:
     """
     Loads properties of a test from a dictionary read from hunter's config file
     This dictionary must have the `type` property to determine the type of the test.
     Other properties depend on the type.
-    Currently supported test types are `fallout`, `graphite` and `csv`.
+    Currently supported test types are `fallout`, `graphite`, `csv`, and `psql`.
     """
     test_type = config.get("type")
     if test_type == "csv":
@@ -135,6 +168,8 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         return create_graphite_test_config(name, config)
     elif test_type == "histostat":
         return create_histostat_test_config(name, config)
+    elif test_type == "postgres":
+        return create_postgres_test_config(name, config)
     elif test_type is None:
         raise TestConfigError(f"Test type not set for test {name}")
     else:
@@ -226,3 +261,32 @@ def create_histostat_test_config(name: str, test_info: Dict) -> HistoStatTestCon
             f"Configuration referenced histostat file which does not exist: {file}"
         )
     return HistoStatTestConfig(name, file)
+
+
+def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTestConfig:
+    try:
+        time_column = test_info.get("time_column", "time")
+        attributes = test_info.get("attributes", [])
+        metrics_info = test_info.get("metrics")
+        query = test_info["query"]
+
+        metrics = []
+        if isinstance(metrics_info, List):
+            for name in metrics_info:
+                metrics.append(CsvMetric(name, 1, 1.0))
+        elif isinstance(metrics_info, Dict):
+            for (metric_name, metric_conf) in metrics_info.items():
+                metrics.append(
+                    PostgresMetric(
+                        name=metric_name,
+                        column=metric_conf.get("column", metric_name),
+                        direction=int(metric_conf.get("direction", "1")),
+                        scale=float(metric_conf.get("scale", "1")),
+                    )
+                )
+        else:
+            raise TestConfigError(f"Metrics of the test {test_name} must be a list or dictionary")
+
+        return PostgresTestConfig(test_name, query, time_column, metrics, attributes)
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")
