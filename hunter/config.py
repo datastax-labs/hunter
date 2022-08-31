@@ -80,7 +80,7 @@ def load_test_groups(config: Dict, tests: Dict[str, TestConfig]) -> Dict[str, Li
 def load_config_from(config_file: Path) -> Config:
     """Loads config from the specified location"""
     try:
-        content = expandvars(config_file.read_text())
+        content = expandvars(config_file.read_text(), nounset=True)
         yaml = YAML(typ="safe")
         config = yaml.load(content)
         """
