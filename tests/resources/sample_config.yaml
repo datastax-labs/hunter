@@ -1,8 +1,8 @@
 # Please place this file in `~/.hunter/hunter.yaml` and provide the missing config values:
 fallout:
   url: https://fallout.sjc.dsinternal.org/
-  user: ${FALLOUT_USER}
-  token: ${FALLOUT_OAUTH_TOKEN}
+  user: FALLOUT_USER
+  token: FALLOUT_OAUTH_TOKEN
 
 graphite:
   url: http://history.sjc.dsinternal.org/
@@ -17,8 +17,8 @@ graphite:
 
 grafana:
   url: http://history.datastax.lan:3000/
-  user: ${GRAFANA_USER}
-  password: ${GRAFANA_PASSWORD}
+  user: GRAFANA_USER
+  password: GRAFANA_PASSWORD
 
 # Templates define common bits shared between test definitions
 templates:
