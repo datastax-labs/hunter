@@ -12,6 +12,7 @@ from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 class ReportType(Enum):
     LOG = "log"
     JSON = "json"
+    REGRESSIONS_ONLY = "regressions_only"
 
     def __str__(self):
         return self.value
@@ -34,6 +35,8 @@ class Report:
             return self.__format_log_annotated(test_name)
         elif report_type == ReportType.JSON:
             return self.__format_json(test_name)
+        elif report_type == ReportType.REGRESSIONS_ONLY:
+            return self.__format_regressions_only(test_name)
         else:
             from hunter.main import HunterError
 
@@ -83,3 +86,33 @@ class Report:
         import json
 
         return json.dumps({test_name: [cpg.to_json() for cpg in self.__change_points]})
+
+    def __format_regressions_only(self, test_name: str) -> str:
+        output = []
+        for cpg in self.__change_points:
+            regressions = []
+            for cp in cpg.changes:
+                metric = self.__series.metrics[cp.metric]
+                if metric.direction * cp.forward_change_percent() < 0:
+                    regressions.append(
+                        (
+                            cp.metric,
+                            cp.stats.mean_1,
+                            cp.stats.mean_2,
+                            cp.stats.forward_rel_change() * 100.0,
+                        )
+                    )
+
+            if regressions:
+                output.append(format_timestamp(cpg.time))
+                output.extend(
+                    [
+                        "    {:16}:\t{:#8.3g}\t--> {:#8.3g}\t({:+6.1f}%)".format(*args)
+                        for args in regressions
+                    ]
+                )
+
+        if output:
+            return f"Regressions in {test_name}:" + "\n" + "\n".join(output)
+        else:
+            return f"No regressions found in {test_name}."
