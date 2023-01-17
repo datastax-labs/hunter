@@ -479,7 +479,7 @@ class PostgresImporter(Importer):
         except ValueError as err:
             raise DataImportError(f"Column not found {err.args[0]}")
 
-        time: List[int] = []
+        time: List[float] = []
         data: Dict[str, List[float]] = {}
         for n in metric_names:
             data[n] = []
@@ -493,7 +493,7 @@ class PostgresImporter(Importer):
                 continue
             if until_time is not None and ts >= until_time:
                 continue
-            time.append(int(ts.timestamp()))
+            time.append(ts.timestamp())
 
             # Read metric values. Note we can still fail on conversion to float,
             # because the user is free to override the column selection and thus
