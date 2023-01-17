@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict
 
 import psycopg2
@@ -53,7 +54,8 @@ class Postgres:
         change_point: ChangePoint,
     ):
         cursor = self.__get_conn().cursor()
-        update_stmt = test.update_stmt.format(metric=metric_name, **attributes)
+        kwargs = {**attributes, **{test.time_column: datetime.utcfromtimestamp(change_point.time)}}
+        update_stmt = test.update_stmt.format(metric=metric_name, **kwargs)
         cursor.execute(
             update_stmt,
             (
