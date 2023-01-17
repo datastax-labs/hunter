@@ -68,7 +68,7 @@ class ChangePointGroup:
     """A group of change points on multiple metrics, at the same time"""
 
     index: int
-    time: int
+    time: float
     prev_time: int
     attributes: Dict[str, str]
     prev_attributes: Dict[str, str]
