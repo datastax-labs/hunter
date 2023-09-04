@@ -239,10 +239,10 @@ class Hunter:
         else:
             baseline_index = baseline_series.find_first_not_earlier_than(since_time)
 
-        baseline_series = baseline_series.analyze()
+        baseline_series = baseline_series.analyze(options=options)
 
         if selector.branch:
-            target_series = importer.fetch_data(test, selector).analyze()
+            target_series = importer.fetch_data(test, selector).analyze(options=options)
         else:
             target_series = baseline_series
 
