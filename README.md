@@ -44,7 +44,7 @@ use pyenv to install it.
 Use pipx to install hunter:
 
 ```
-pipx install git+ssh://git@github.com/datastax/hunter
+pipx install git+ssh://git@github.com/datastax-labs/hunter
 ```
 
 ## Setup
