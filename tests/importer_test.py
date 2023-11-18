@@ -4,8 +4,14 @@ import pytz
 
 from hunter.csv_options import CsvOptions
 from hunter.graphite import DataSelector
-from hunter.importer import CsvImporter, HistoStatImporter
-from hunter.test_config import CsvMetric, CsvTestConfig, HistoStatTestConfig
+from hunter.importer import CsvImporter, HistoStatImporter, PostgresImporter
+from hunter.test_config import (
+    CsvMetric,
+    CsvTestConfig,
+    HistoStatTestConfig,
+    PostgresMetric,
+    PostgresTestConfig,
+)
 
 SAMPLE_CSV = "tests/resources/sample.csv"
 
@@ -116,3 +122,79 @@ def test_import_histostat_last_n_points():
     series = importer.fetch_data(test, selector=selector)
     assert len(series.time) == 2
     assert len(series.data["initialize.result-success.count"]) == 2
+
+
+class MockPostgres:
+    def fetch_data(self, query: str):
+        return (
+            ["time", "metric1", "metric2", "commit"],
+            [
+                (datetime(2022, 7, 1, 15, 11, tzinfo=pytz.UTC), 2, 3, "aaabbb"),
+                (datetime(2022, 7, 2, 16, 22, tzinfo=pytz.UTC), 5, 6, "cccddd"),
+                (datetime(2022, 7, 3, 17, 13, tzinfo=pytz.UTC), 2, 3, "aaaccc"),
+                (datetime(2022, 7, 4, 18, 24, tzinfo=pytz.UTC), 5, 6, "ccc123"),
+                (datetime(2022, 7, 5, 19, 15, tzinfo=pytz.UTC), 2, 3, "aaa493"),
+                (datetime(2022, 7, 6, 20, 26, tzinfo=pytz.UTC), 5, 6, "cccfgl"),
+                (datetime(2022, 7, 7, 21, 17, tzinfo=pytz.UTC), 2, 3, "aaalll"),
+                (datetime(2022, 7, 8, 22, 28, tzinfo=pytz.UTC), 5, 6, "cccccc"),
+                (datetime(2022, 7, 9, 23, 19, tzinfo=pytz.UTC), 2, 3, "aadddd"),
+                (datetime(2022, 7, 10, 9, 29, tzinfo=pytz.UTC), 5, 6, "cciiii"),
+            ],
+        )
+
+
+def test_import_postgres():
+    test = PostgresTestConfig(
+        name="test",
+        query="SELECT * FROM sample;",
+        time_column="time",
+        metrics=[PostgresMetric("m1", 1, 1.0, "metric1"), PostgresMetric("m2", 1, 5.0, "metric2")],
+        attributes=["commit"],
+    )
+    importer = PostgresImporter(MockPostgres())
+    series = importer.fetch_data(test_conf=test)
+    assert len(series.data.keys()) == 2
+    assert len(series.time) == 10
+    assert len(series.data["m1"]) == 10
+    assert len(series.data["m2"]) == 10
+    assert len(series.attributes["commit"]) == 10
+    assert series.metrics["m2"].scale == 5.0
+
+
+def test_import_postgres_with_time_filter():
+    test = PostgresTestConfig(
+        name="test",
+        query="SELECT * FROM sample;",
+        time_column="time",
+        metrics=[PostgresMetric("m1", 1, 1.0, "metric1"), PostgresMetric("m2", 1, 5.0, "metric2")],
+        attributes=["commit"],
+    )
+
+    importer = PostgresImporter(MockPostgres())
+    selector = DataSelector()
+    tz = pytz.timezone("Etc/GMT+1")
+    selector.since_time = datetime(2022, 7, 8, 0, 0, 0, tzinfo=tz)
+    selector.until_time = datetime(2022, 7, 10, 0, 0, 0, tzinfo=tz)
+    series = importer.fetch_data(test, selector=selector)
+    assert len(series.data.keys()) == 2
+    assert len(series.time) == 2
+    assert len(series.data["m1"]) == 2
+    assert len(series.data["m2"]) == 2
+
+
+def test_import_postgres_last_n_points():
+    test = PostgresTestConfig(
+        name="test",
+        query="SELECT * FROM sample;",
+        time_column="time",
+        metrics=[PostgresMetric("m1", 1, 1.0, "metric1"), PostgresMetric("m2", 1, 5.0, "metric2")],
+        attributes=["commit"],
+    )
+
+    importer = PostgresImporter(MockPostgres())
+    selector = DataSelector()
+    selector.last_n_points = 5
+    series = importer.fetch_data(test, selector=selector)
+    assert len(series.time) == 5
+    assert len(series.data["m2"]) == 5
+    assert len(series.attributes["commit"]) == 5

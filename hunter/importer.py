@@ -9,12 +9,15 @@ from typing import Dict, List, Optional
 from hunter.config import Config
 from hunter.data_selector import DataSelector
 from hunter.graphite import DataPoint, Graphite, GraphiteError
+from hunter.postgres import Postgres
 from hunter.series import Metric, Series
 from hunter.test_config import (
     CsvMetric,
     CsvTestConfig,
     GraphiteTestConfig,
     HistoStatTestConfig,
+    PostgresMetric,
+    PostgresTestConfig,
     TestConfig,
 )
 from hunter.util import (
@@ -431,17 +434,122 @@ class HistoStatImporter(Importer):
         return metric_names
 
 
+class PostgresImporter:
+    __postgres: Postgres
+
+    def __init__(self, postgres: Postgres):
+        self.__postgres = postgres
+
+    @staticmethod
+    def __selected_metrics(
+        defined_metrics: Dict[str, PostgresMetric], selected_metrics: Optional[List[str]]
+    ) -> Dict[str, PostgresMetric]:
+
+        if selected_metrics is not None:
+            return {name: defined_metrics[name] for name in selected_metrics}
+        else:
+            return defined_metrics
+
+    def fetch_data(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
+        if not isinstance(test_conf, PostgresTestConfig):
+            raise ValueError("Expected PostgresTestConfig")
+
+        if selector.branch:
+            raise ValueError("Postgres tests don't support branching yet")
+
+        since_time = selector.since_time
+        until_time = selector.until_time
+        if since_time.timestamp() > until_time.timestamp():
+            raise DataImportError(
+                f"Invalid time range: ["
+                f"{format_timestamp(int(since_time.timestamp()))}, "
+                f"{format_timestamp(int(until_time.timestamp()))}]"
+            )
+        metrics = self.__selected_metrics(test_conf.metrics, selector.metrics)
+
+        columns, rows = self.__postgres.fetch_data(test_conf.query)
+
+        # Decide which columns to fetch into which components of the result:
+        try:
+            time_index: int = columns.index(test_conf.time_column)
+            attr_indexes: List[int] = [columns.index(c) for c in test_conf.attributes]
+            metric_names = [m.name for m in metrics.values()]
+            metric_columns = [m.column for m in metrics.values()]
+            metric_indexes: List[int] = [columns.index(c) for c in metric_columns]
+        except ValueError as err:
+            raise DataImportError(f"Column not found {err.args[0]}")
+
+        time: List[int] = []
+        data: Dict[str, List[float]] = {}
+        for n in metric_names:
+            data[n] = []
+        attributes: Dict[str, List[str]] = {}
+        for i in attr_indexes:
+            attributes[columns[i]] = []
+
+        for row in rows:
+            ts: datetime = row[time_index]
+            if since_time is not None and ts < since_time:
+                continue
+            if until_time is not None and ts >= until_time:
+                continue
+            time.append(int(ts.timestamp()))
+
+            # Read metric values. Note we can still fail on conversion to float,
+            # because the user is free to override the column selection and thus
+            # they may select a column that contains non-numeric data:
+            for (name, i) in zip(metric_names, metric_indexes):
+                try:
+                    data[name].append(float(row[i]))
+                except ValueError as err:
+                    raise DataImportError(
+                        "Could not convert value in column " + columns[i] + ": " + err.args[0]
+                    )
+
+            # Attributes are just copied as-is, with no conversion:
+            for i in attr_indexes:
+                attributes[columns[i]].append(row[i])
+
+        # Convert metrics to series.Metrics
+        metrics = {m.name: Metric(m.direction, m.scale) for m in metrics.values()}
+
+        # Leave last n points:
+        time = time[-selector.last_n_points :]
+        tmp = data
+        data = {}
+        for k, v in tmp.items():
+            data[k] = v[-selector.last_n_points :]
+        tmp = attributes
+        attributes = {}
+        for k, v in tmp.items():
+            attributes[k] = v[-selector.last_n_points :]
+
+        return Series(
+            test_conf.name,
+            branch=None,
+            time=time,
+            metrics=metrics,
+            data=data,
+            attributes=attributes,
+        )
+
+    def fetch_all_metric_names(self, test_conf: PostgresTestConfig) -> List[str]:
+        return [m for m in test_conf.metrics.keys()]
+
+
 class Importers:
     __config: Config
     __csv_importer: Optional[CsvImporter]
     __graphite_importer: Optional[GraphiteImporter]
     __histostat_importer: Optional[HistoStatImporter]
+    __postgres_importer: Optional[PostgresImporter]
 
     def __init__(self, config: Config):
         self.__config = config
         self.__csv_importer = None
         self.__graphite_importer = None
         self.__histostat_importer = None
+        self.__postgres_importer = None
 
     def csv_importer(self) -> CsvImporter:
         if self.__csv_importer is None:
@@ -458,6 +566,11 @@ class Importers:
             self.__histostat_importer = HistoStatImporter()
         return self.__histostat_importer
 
+    def postgres_importer(self) -> PostgresImporter:
+        if self.__postgres_importer is None:
+            self.__postgres_importer = PostgresImporter(Postgres(self.__config.postgres))
+        return self.__postgres_importer
+
     def get(self, test: TestConfig) -> Importer:
         if isinstance(test, CsvTestConfig):
             return self.csv_importer()
@@ -465,5 +578,7 @@ class Importers:
             return self.graphite_importer()
         elif isinstance(test, HistoStatTestConfig):
             return self.histostat_importer()
+        elif isinstance(test, PostgresTestConfig):
+            return self.postgres_importer()
         else:
             raise ValueError(f"Unsupported test type {type(test)}")

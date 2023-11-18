@@ -8,6 +8,7 @@ from ruamel.yaml import YAML
 
 from hunter.grafana import GrafanaConfig
 from hunter.graphite import GraphiteConfig
+from hunter.postgres import PostgresConfig
 from hunter.slack import SlackConfig
 from hunter.test_config import TestConfig, create_test_config
 from hunter.util import merge_dict_list
@@ -20,6 +21,7 @@ class Config:
     tests: Dict[str, TestConfig]
     test_groups: Dict[str, List[TestConfig]]
     slack: SlackConfig
+    postgres: PostgresConfig
 
 
 @dataclass
@@ -110,6 +112,27 @@ def load_config_from(config_file: Path) -> Config:
                 bot_token=config["slack"]["token"],
             )
 
+        postgres_config = None
+        if config.get("postgres") is not None:
+            if not config["postgres"]["hostname"]:
+                raise ValueError("postgres.hostname")
+            if not config["postgres"]["port"]:
+                raise ValueError("postgres.port")
+            if not config["postgres"]["username"]:
+                raise ValueError("postgres.username")
+            if not config["postgres"]["password"]:
+                raise ValueError("postgres.password")
+            if not config["postgres"]["database"]:
+                raise ValueError("postgres.database")
+
+            postgres_config = PostgresConfig(
+                hostname=config["postgres"]["hostname"],
+                port=config["postgres"]["port"],
+                username=config["postgres"]["username"],
+                password=config["postgres"]["password"],
+                database=config["postgres"]["database"],
+            )
+
         templates = load_templates(config)
         tests = load_tests(config, templates)
         groups = load_test_groups(config, tests)
@@ -118,6 +141,7 @@ def load_config_from(config_file: Path) -> Config:
             graphite=graphite_config,
             grafana=grafana_config,
             slack=slack_config,
+            postgres=postgres_config,
             tests=tests,
             test_groups=groups,
         )
