@@ -444,7 +444,7 @@ def setup_analysis_options_parser(parser: argparse.ArgumentParser):
         default=False,
         dest="orig_edivisive",
         help="use the original edivisive algorithm with no windowing "
-             "and weak change points analysis improvements",
+        "and weak change points analysis improvements",
     )
 
 

@@ -7,8 +7,10 @@ from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.base import SignificanceTester
 from signal_processing_algorithms.e_divisive.calculators import cext_calculator
 from signal_processing_algorithms.e_divisive.change_points import EDivisiveChangePoint
-from signal_processing_algorithms.e_divisive.significance_test import \
-    QHatPermutationsSignificanceTester
+from signal_processing_algorithms.e_divisive.significance_test import (
+    QHatPermutationsSignificanceTester,
+)
+
 
 @dataclass
 class ComparativeStats:
