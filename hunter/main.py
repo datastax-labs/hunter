@@ -438,6 +438,14 @@ def setup_analysis_options_parser(parser: argparse.ArgumentParser):
         "as noise so it is best to keep it short enough to include not more "
         "than a few change points (optimally at most 1)",
     )
+    parser.add_argument(
+        "--orig-edivisive",
+        type=bool,
+        default=False,
+        dest="orig_edivisive",
+        help="use the original edivisive algorithm with no windowing "
+        "and weak change points analysis improvements",
+    )
 
 
 def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
@@ -448,6 +456,8 @@ def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
         conf.min_magnitude = args.magnitude
     if args.window is not None:
         conf.window_len = args.window
+    if args.orig_edivisive is not None:
+        conf.orig_edivisive = args.orig_edivisive
     return conf
 
 
