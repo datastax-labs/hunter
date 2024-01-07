@@ -59,10 +59,31 @@ class ChangePoint:
     def magnitude(self):
         return self.stats.change_magnitude()
 
+    def mean_before(self):
+        return self.stats.mean_1
+
+    def mean_after(self):
+        return self.stats.mean_2
+
+    def stddev_before(self):
+        return self.stats.std_1
+
+    def stddev_after(self):
+        return self.stats.std_2
+
+    def pvalue(self):
+        return self.stats.pvalue
+
     def to_json(self):
         return {
             "metric": self.metric,
             "forward_change_percent": f"{self.forward_change_percent():.0f}",
+            "magnitude": f"{self.magnitude():-0f}",
+            "mean_before": f"{self.mean_before():-0f}",
+            "stddev_before": f"{self.stddev_before():-0f}",
+            "mean_after": f"{self.mean_after():-0f}",
+            "stddev_after": f"{self.stddev_after():-0f}",
+            "pvalue": f"{self.pvalue():-0f}",
         }
 
 
