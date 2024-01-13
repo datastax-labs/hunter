@@ -99,7 +99,11 @@ class ChangePointGroup:
     changes: List[ChangePoint]
 
     def to_json(self):
-        return {"time": self.time, "changes": [cp.to_json() for cp in self.changes]}
+        return {
+            "time": self.time,
+            "attributes": self.attributes,
+            "changes": [cp.to_json() for cp in self.changes],
+        }
 
 
 class Series:
