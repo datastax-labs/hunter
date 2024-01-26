@@ -10,6 +10,7 @@ from hunter.analysis import (
     ComparativeStats,
     TTestSignificanceTester,
     compute_change_points,
+    compute_change_points_orig,
     fill_missing,
 )
 
@@ -19,11 +20,13 @@ class AnalysisOptions:
     window_len: int
     max_pvalue: float
     min_magnitude: float
+    orig_edivisive: bool
 
     def __init__(self):
         self.window_len = 50
         self.max_pvalue = 0.001
         self.min_magnitude = 0.0
+        self.orig_edivisive = False
 
 
 @dataclass
@@ -160,12 +163,18 @@ class AnalyzedSeries:
         for metric in series.data.keys():
             values = series.data[metric].copy()
             fill_missing(values)
-            change_points = compute_change_points(
-                values,
-                window_len=options.window_len,
-                max_pvalue=options.max_pvalue,
-                min_magnitude=options.min_magnitude,
-            )
+            if options.orig_edivisive:
+                change_points = compute_change_points_orig(
+                    values,
+                    max_pvalue=options.max_pvalue,
+                )
+            else:
+                change_points = compute_change_points(
+                    values,
+                    window_len=options.window_len,
+                    max_pvalue=options.max_pvalue,
+                    min_magnitude=options.min_magnitude,
+                )
             result[metric] = []
             for c in change_points:
                 result[metric].append(
