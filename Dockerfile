@@ -25,9 +25,9 @@ RUN apt-get update --assume-yes && \
     && rm -rf /var/lib/apt/lists/*
 
 # Get poetry package
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
+RUN curl -sSL https://install.python-poetry.org | python3 -
 # Adding poetry to PATH
-ENV PATH="/root/.poetry/bin:$PATH"
+ENV PATH="/root/.local/bin/:$PATH"
 
 # Copy the rest of the program over
 COPY --chown=hunter:hunter . ${HUNTER_HOME}

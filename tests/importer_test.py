@@ -61,8 +61,8 @@ def test_import_csv_with_time_filter():
     importer = CsvImporter()
     selector = data_selector()
     tz = pytz.timezone("Etc/GMT+1")
-    selector.since_time = datetime(2021, 1, 5, 0, 0, 0, tzinfo=tz)
-    selector.until_time = datetime(2021, 1, 7, 0, 0, 0, tzinfo=tz)
+    selector.since_time = datetime(2024, 1, 5, 0, 0, 0, tzinfo=tz)
+    selector.until_time = datetime(2024, 1, 7, 0, 0, 0, tzinfo=tz)
     series = importer.fetch_data(test, selector=selector)
     assert len(series.data.keys()) == 2
     assert len(series.time) == 2
@@ -78,7 +78,7 @@ def test_import_csv_with_unix_timestamps():
     assert len(series.time) == 10
     assert len(series.data["m1"]) == 10
     assert len(series.data["m2"]) == 10
-    ts = datetime(2021, 1, 1, 2, 0, 0, tzinfo=pytz.UTC).timestamp()
+    ts = datetime(2024, 1, 1, 2, 0, 0, tzinfo=pytz.UTC).timestamp()
     assert series.time[0] == ts
 
 

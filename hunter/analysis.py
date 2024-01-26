@@ -7,6 +7,9 @@ from signal_processing_algorithms.e_divisive import EDivisive
 from signal_processing_algorithms.e_divisive.base import SignificanceTester
 from signal_processing_algorithms.e_divisive.calculators import cext_calculator
 from signal_processing_algorithms.e_divisive.change_points import EDivisiveChangePoint
+from signal_processing_algorithms.e_divisive.significance_test import (
+    QHatPermutationsSignificanceTester,
+)
 
 
 @dataclass
@@ -217,6 +220,16 @@ def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001) -> 
         start = max(last_new_change_point_index, start + step)
         indexes += new_indexes
 
+    window_endpoints = [0] + indexes + [len(series)]
+    return [tester.change_point(i, series, window_endpoints) for i in indexes]
+
+
+def compute_change_points_orig(series: np.array, max_pvalue: float = 0.001) -> List[ChangePoint]:
+    calculator = cext_calculator
+    tester = QHatPermutationsSignificanceTester(calculator, pvalue=max_pvalue, permutations=100)
+    algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
+    pts = algo.get_change_points(series)
+    indexes = [p.index for p in pts]
     window_endpoints = [0] + indexes + [len(series)]
     return [tester.change_point(i, series, window_endpoints) for i in indexes]
 
