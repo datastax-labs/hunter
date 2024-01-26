@@ -152,7 +152,7 @@ def test_import_postgres():
         attributes=["commit"],
     )
     importer = PostgresImporter(MockPostgres())
-    series = importer.fetch_data(test_conf=test)
+    series = importer.fetch_data(test_conf=test, selector=data_selector())
     assert len(series.data.keys()) == 2
     assert len(series.time) == 10
     assert len(series.data["m1"]) == 10
@@ -192,7 +192,7 @@ def test_import_postgres_last_n_points():
     )
 
     importer = PostgresImporter(MockPostgres())
-    selector = DataSelector()
+    selector = data_selector()
     selector.last_n_points = 5
     series = importer.fetch_data(test, selector=selector)
     assert len(series.time) == 5
