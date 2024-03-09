@@ -160,7 +160,7 @@ class Series:
         return result
 
     def analyze(self, options: AnalysisOptions = AnalysisOptions()) -> "AnalyzedSeries":
-        logging.info(f"Computing change points for test {self.test_name}...")
+        logging.debug(f"Computing change points for test {self.test_name}...")
         return AnalyzedSeries(self, options)
 
 
