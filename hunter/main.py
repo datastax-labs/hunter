@@ -462,6 +462,16 @@ def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
 
 
 def main():
+    try:
+        conf = config.load_config()
+    except ConfigError as err:
+        logging.error(err.message)
+        exit(1)
+
+    script_main(conf)
+
+
+def script_main(conf: Config):
     logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
     parser = argparse.ArgumentParser(description="Hunts performance regressions in Fallout results")
@@ -531,7 +541,6 @@ def main():
 
     try:
         args = parser.parse_args()
-        conf = config.load_config()
         hunter = Hunter(conf)
 
         if args.command == "list-groups":
@@ -619,9 +628,6 @@ def main():
         if args.command is None:
             parser.print_usage()
 
-    except ConfigError as err:
-        logging.error(err.message)
-        exit(1)
     except TestConfigError as err:
         logging.error(err.message)
         exit(1)
