@@ -471,7 +471,7 @@ def main():
     script_main(conf)
 
 
-def script_main(conf: Config):
+def script_main(conf: Config, args: List[str] = None):
     logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
     parser = argparse.ArgumentParser(description="Hunts performance regressions in Fallout results")
@@ -540,7 +540,7 @@ def script_main(conf: Config):
     )
 
     try:
-        args = parser.parse_args()
+        args = parser.parse_args(args=args)
         hunter = Hunter(conf)
 
         if args.command == "list-groups":
