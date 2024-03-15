@@ -33,9 +33,38 @@ class ComparativeStats:
         """Relative change from right to left"""
         return self.mean_1 / self.mean_2 - 1.0
 
+    def forward_change_percent(self) -> float:
+        return self.forward_rel_change() * 100.0
+
+    def backward_change_percent(self) -> float:
+        return self.backward_rel_change() * 100.0
+
     def change_magnitude(self):
         """Maximum of absolutes of rel_change and rel_change_reversed"""
         return max(abs(self.forward_rel_change()), abs(self.backward_rel_change()))
+
+    def mean_before(self):
+        return self.mean_1
+
+    def mean_after(self):
+        return self.mean_2
+
+    def stddev_before(self):
+        return self.std_1
+
+    def stddev_after(self):
+        return self.std_2
+
+    def to_json(self):
+        return {
+            "forward_change_percent": f"{self.forward_change_percent():-0f}",
+            "magnitude": f"{self.change_magnitude():-0f}",
+            "mean_before": f"{self.mean_before():-0f}",
+            "stddev_before": f"{self.stddev_before():-0f}",
+            "mean_after": f"{self.mean_after():-0f}",
+            "stddev_after": f"{self.stddev_after():-0f}",
+            "pvalue": f"{self.pvalue:-0f}",
+        }
 
 
 @dataclass
