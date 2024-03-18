@@ -224,7 +224,11 @@ class Hunter:
                 postgres.insert_change_point(test, metric_name, attributes, cp)
 
     def regressions(
-        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
+        self,
+        test: TestConfig,
+        selector: DataSelector,
+        options: AnalysisOptions,
+        ignore_direction: bool = False,
     ) -> bool:
         importer = self.__importers.get(test)
 
@@ -273,7 +277,12 @@ class Hunter:
             m1 = stats.mean_1
             m2 = stats.mean_2
             change_percent = stats.forward_rel_change() * 100.0
-            if m2 * direction < m1 * direction and stats.pvalue < options.max_pvalue:
+            if ignore_direction:
+                mean_diff = m2 != m1
+            else:
+                mean_diff = m2 * direction < m1 * direction
+
+            if mean_diff and stats.pvalue < options.max_pvalue:
                 regressions.append(
                     "    {:16}: {:#8.3g} --> {:#8.3g} ({:+6.1f}%)".format(
                         metric_name, m1, m2, change_percent
@@ -549,6 +558,12 @@ def script_main(conf: Config, args: List[str] = None):
     regressions_parser.add_argument(
         "tests", help="name of the test or group of the tests", nargs="+"
     )
+    regressions_parser.add_argument(
+        "--ignore-direction",
+        help="ignore the direction of the change in performance",
+        dest="ignore_direction",
+        action="store_true",
+    )
     setup_data_selector_parser(regressions_parser)
     setup_analysis_options_parser(regressions_parser)
 
@@ -630,7 +645,12 @@ def script_main(conf: Config, args: List[str] = None):
             errors = 0
             for test in tests:
                 try:
-                    regressions = hunter.regressions(test, selector=data_selector, options=options)
+                    regressions = hunter.regressions(
+                        test,
+                        selector=data_selector,
+                        options=options,
+                        ignore_direction=args.ignore_direction,
+                    )
                     if regressions:
                         regressing_test_count += 1
                 except HunterError as err:
