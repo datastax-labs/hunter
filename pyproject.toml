@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hunter"
-version = "0.5.0"
+version = "0.6.0"
 description = ""
 authors = ["Piotr Kołaczkowski <pkolaczk@datastax.com>"]
 
