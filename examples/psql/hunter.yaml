@@ -1,0 +1,55 @@
+# External systems connectors configuration:
+postgres:
+  hostname: ${POSTGRES_HOSTNAME}
+  port: ${POSTGRES_PORT}
+  username: ${POSTGRES_USERNAME}
+  password: ${POSTGRES_PASSWORD}
+  database: ${POSTGRES_DATABASE}
+
+# Templates define common bits shared between test definitions:
+templates:
+  common:
+    type: postgres
+    time_column: commit_ts
+    attributes: [experiment_id, config_id, commit]
+    # required for --update-postgres to work
+    update_statement: |
+      UPDATE results 
+        SET {metric}_rel_forward_change=%s, 
+            {metric}_rel_backward_change=%s, 
+            {metric}_p_value=%s
+      WHERE experiment_id = '{experiment_id}' AND config_id = {config_id}
+    metrics:
+      process_cumulative_rate_mean:
+        direction: 1
+        scale: 1
+      process_cumulative_rate_stderr:
+        direction: -1
+        scale: 1
+      process_cumulative_rate_diff:
+        direction: -1
+        scale: 1
+
+# Define your tests here:
+tests:
+  aggregate_mem:
+    inherit: [ common ] # avoids repeating metrics definitions and postgres-related config
+    query: |
+      SELECT e.commit, 
+             e.commit_ts, 
+             r.process_cumulative_rate_mean, 
+             r.process_cumulative_rate_stderr, 
+             r.process_cumulative_rate_diff, 
+             r.experiment_id, 
+             r.config_id
+      FROM results r
+      INNER JOIN configs c ON r.config_id = c.id
+      INNER JOIN experiments e ON r.experiment_id = e.id
+      WHERE e.exclude_from_analysis = false AND
+            e.branch = '${BRANCH}' AND
+            e.username = 'ci' AND
+            c.store = 'MEM' AND
+            c.cache = true AND
+            c.benchmark = 'aggregate' AND
+            c.instance_type = 'ec2i3.large'
+      ORDER BY e.commit_ts ASC;
