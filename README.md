@@ -58,9 +58,7 @@ Environment variables are interpolated before interpreting the configuration fil
 
 ### Defining tests
 All test configurations are defined in the main configuration file.
-Currently, there are two types of tests supported: tests that publish
-their results to a CSV file, and tests that publish their results
-to a Graphite database.
+Hunter supports publishing results to a CSV file, [Graphite](https://graphiteapp.org/), and [PostgreSQL](https://www.postgresql.org/).
 
 Tests are defined in the `tests` section.
 
@@ -141,6 +139,61 @@ $ curl -X POST "http://graphite_address/events/" \
 
 Posting those events is not mandatory, but when they are available, Hunter is able to 
 filter data by commit or version using `--since-commit` or `--since-version` selectors.
+
+#### Importing results from PostgreSQL
+
+To import data from PostgreSQL, Hunter configuration must contain the database connection details:
+
+```yaml
+# External systems connectors configuration:
+postgres:
+  hostname: ...
+  port: ...
+  username: ...
+  password: ...
+  database: ...
+```
+
+Test configurations must contain a query to select experiment data, a time column, and a list of columns to analyze:
+
+```yaml
+tests:
+  aggregate_mem:
+    type: postgres
+    time_column: commit_ts
+    attributes: [experiment_id, config_id, commit]
+    metrics:
+      process_cumulative_rate_mean:
+        direction: 1
+        scale: 1
+      process_cumulative_rate_stderr:
+        direction: -1
+        scale: 1
+      process_cumulative_rate_diff:
+        direction: -1
+        scale: 1    
+    query: |
+      SELECT e.commit, 
+             e.commit_ts, 
+             r.process_cumulative_rate_mean, 
+             r.process_cumulative_rate_stderr, 
+             r.process_cumulative_rate_diff, 
+             r.experiment_id, 
+             r.config_id
+      FROM results r
+      INNER JOIN configs c ON r.config_id = c.id
+      INNER JOIN experiments e ON r.experiment_id = e.id
+      WHERE e.exclude_from_analysis = false AND
+            e.branch = 'trunk' AND
+            e.username = 'ci' AND
+            c.store = 'MEM' AND
+            c.cache = true AND
+            c.benchmark = 'aggregate' AND
+            c.instance_type = 'ec2i3.large'
+      ORDER BY e.commit_ts ASC;
+```
+
+For more details, see the examples in [examples/psql](examples/psql).
 
 #### Avoiding test definition duplication
 You may find that your test definitions are very similar to each other,
