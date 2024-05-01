@@ -1,9 +1,10 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from enum import Enum, unique
-from typing import List
+from typing import List, Tuple
 
 from tabulate import tabulate
 
+from hunter.analysis import ComparativeStats
 from hunter.series import ChangePointGroup, Series
 from hunter.util import format_timestamp, insert_multiple, remove_common_prefix
 
@@ -18,7 +19,7 @@ class ReportType(Enum):
         return self.value
 
 
-class Report:
+class ChangePointReport:
     __series: Series
     __change_points: List[ChangePointGroup]
 
@@ -116,3 +117,46 @@ class Report:
             return f"Regressions in {test_name}:" + "\n" + "\n".join(output)
         else:
             return f"No regressions found in {test_name}."
+
+
+class RegressionsReport:
+    def __init__(self, regressions: List[Tuple[str, ComparativeStats]]):
+        self.__regressions = regressions
+
+    def produce_report(self, test_name: str, report_type: ReportType):
+        if report_type == ReportType.LOG:
+            return self.__format_log(test_name)
+        elif report_type == ReportType.JSON:
+            return self.__format_json(test_name)
+        else:
+            from hunter.main import HunterError
+
+            raise HunterError(f"Unknown report type: {report_type}")
+
+    def __format_log(self, test_name: str) -> str:
+        if not self.__regressions:
+            return f"{test_name}: OK"
+
+        output = f"{test_name}:"
+        for metric_name, stats in self.__regressions:
+            m1 = stats.mean_1
+            m2 = stats.mean_2
+            change_percent = stats.forward_change_percent()
+            output += "\n    {:16}: {:#8.3g} --> {:#8.3g} ({:+6.1f}%)".format(
+                metric_name, m1, m2, change_percent
+            )
+        return output
+
+    def __format_json(self, test_name: str) -> str:
+        import json
+
+        if not self.__regressions:
+            return json.dumps({test_name: []})
+
+        output = defaultdict(list)
+        for metric_name, stats in self.__regressions:
+            obj = {"metric": metric_name}
+            obj.update(stats.to_json())
+            output[test_name].append(obj)
+
+        return json.dumps(output)

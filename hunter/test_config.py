@@ -162,7 +162,7 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
     Loads properties of a test from a dictionary read from hunter's config file
     This dictionary must have the `type` property to determine the type of the test.
     Other properties depend on the type.
-    Currently supported test types are `fallout`, `graphite`, `csv`, and `psql`.
+    Currently supported test types are `fallout`, `graphite`, `csv`, `json`, and `psql`.
     """
     test_type = config.get("type")
     if test_type == "csv":
@@ -173,6 +173,8 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         return create_histostat_test_config(name, config)
     elif test_type == "postgres":
         return create_postgres_test_config(name, config)
+    elif test_type == "json":
+        return create_json_test_config(name, config)
     elif test_type is None:
         raise TestConfigError(f"Test type not set for test {name}")
     else:
@@ -192,7 +194,7 @@ def create_csv_test_config(test_name: str, test_info: Dict) -> CsvTestConfig:
         for name in metrics_info:
             metrics.append(CsvMetric(name, 1, 1.0, name))
     elif isinstance(metrics_info, Dict):
-        for (metric_name, metric_conf) in metrics_info.items():
+        for metric_name, metric_conf in metrics_info.items():
             metrics.append(
                 CsvMetric(
                     name=metric_name,
@@ -231,7 +233,7 @@ def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfi
 
     metrics = []
     try:
-        for (metric_name, metric_conf) in metrics_info.items():
+        for metric_name, metric_conf in metrics_info.items():
             metrics.append(
                 GraphiteMetric(
                     name=metric_name,
@@ -279,7 +281,7 @@ def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTest
             for name in metrics_info:
                 metrics.append(CsvMetric(name, 1, 1.0))
         elif isinstance(metrics_info, Dict):
-            for (metric_name, metric_conf) in metrics_info.items():
+            for metric_name, metric_conf in metrics_info.items():
                 metrics.append(
                     PostgresMetric(
                         name=metric_name,
@@ -294,3 +296,28 @@ def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTest
         return PostgresTestConfig(test_name, query, update_stmt, time_column, metrics, attributes)
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")
+
+
+@dataclass
+class JsonTestConfig(TestConfig):
+    name: str
+    file: str
+    base_branch: str
+
+    # TODO: This should return the list defined in the config file hunter.yaml
+    def fully_qualified_metric_names(self):
+        from hunter.importer import JsonImporter
+
+        metric_names = JsonImporter().fetch_all_metric_names(self)
+        return [f"{self.name}.{m}" for m in metric_names]
+
+
+def create_json_test_config(name: str, test_info: Dict) -> JsonTestConfig:
+    try:
+        file = test_info["file"]
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
+    if not os.path.exists(file):
+        raise TestConfigError(f"Configuration file not found: {file}")
+    base_branch = test_info.get("base_branch", None)
+    return JsonTestConfig(name, file, base_branch)

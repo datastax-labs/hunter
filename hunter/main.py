@@ -17,7 +17,7 @@ from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
 from hunter.postgres import Postgres, PostgresError
-from hunter.report import Report, ReportType
+from hunter.report import ChangePointReport, RegressionsReport, ReportType
 from hunter.series import AnalysisOptions, AnalyzedSeries, compare
 from hunter.slack import NotificationError, SlackNotifier
 from hunter.test_config import (
@@ -102,7 +102,7 @@ class Hunter:
         series = importer.fetch_data(test, selector)
         analyzed_series = series.analyze(options)
         change_points = analyzed_series.change_points_by_time
-        report = Report(series, change_points)
+        report = ChangePointReport(series, change_points)
         produced_report = report.produce_report(test.name, report_type)
         print(produced_report)
         return analyzed_series
@@ -224,7 +224,12 @@ class Hunter:
                 postgres.insert_change_point(test, metric_name, attributes, cp)
 
     def regressions(
-        self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
+        self,
+        test: TestConfig,
+        selector: DataSelector,
+        options: AnalysisOptions,
+        report_type: ReportType,
+        ignore_direction: bool = False,
     ) -> bool:
         importer = self.__importers.get(test)
 
@@ -272,20 +277,17 @@ class Hunter:
             direction = baseline_series.metric(metric_name).direction
             m1 = stats.mean_1
             m2 = stats.mean_2
-            change_percent = stats.forward_rel_change() * 100.0
-            if m2 * direction < m1 * direction and stats.pvalue < options.max_pvalue:
-                regressions.append(
-                    "    {:16}: {:#8.3g} --> {:#8.3g} ({:+6.1f}%)".format(
-                        metric_name, m1, m2, change_percent
-                    )
-                )
+            if ignore_direction:
+                mean_diff = m2 != m1
+            else:
+                mean_diff = m2 * direction < m1 * direction
 
-        if regressions:
-            print(f"{test.name}:")
-            for r in regressions:
-                print(r)
-        else:
-            print(f"{test.name}: OK")
+            if mean_diff and stats.pvalue < options.max_pvalue:
+                regressions.append((metric_name, stats))
+
+        report = RegressionsReport(regressions)
+        produced_report = report.produce_report(test.name, report_type)
+        print(produced_report)
         return len(regressions) > 0
 
     def __maybe_create_slack_notifier(self):
@@ -466,6 +468,14 @@ def setup_analysis_options_parser(parser: argparse.ArgumentParser):
         help="use the original edivisive algorithm with no windowing "
         "and weak change points analysis improvements",
     )
+    parser.add_argument(
+        "--output",
+        help="Output format for the generated report.",
+        choices=list(ReportType),
+        dest="report_type",
+        default=ReportType.LOG,
+        type=ReportType,
+    )
 
 
 def analysis_options_from_args(args: argparse.Namespace) -> AnalysisOptions:
@@ -534,20 +544,18 @@ def script_main(conf: Config, args: List[str] = None):
         metavar="DATE",
         dest="cph_report_since",
     )
-    analyze_parser.add_argument(
-        "--output",
-        help="Output format for the generated report.",
-        choices=list(ReportType),
-        dest="report_type",
-        default=ReportType.LOG,
-        type=ReportType,
-    )
     setup_data_selector_parser(analyze_parser)
     setup_analysis_options_parser(analyze_parser)
 
     regressions_parser = subparsers.add_parser("regressions", help="find performance regressions")
     regressions_parser.add_argument(
         "tests", help="name of the test or group of the tests", nargs="+"
+    )
+    regressions_parser.add_argument(
+        "--ignore-direction",
+        help="ignore the direction of the change in performance",
+        dest="ignore_direction",
+        action="store_true",
     )
     setup_data_selector_parser(regressions_parser)
     setup_analysis_options_parser(regressions_parser)
@@ -630,7 +638,13 @@ def script_main(conf: Config, args: List[str] = None):
             errors = 0
             for test in tests:
                 try:
-                    regressions = hunter.regressions(test, selector=data_selector, options=options)
+                    regressions = hunter.regressions(
+                        test,
+                        selector=data_selector,
+                        options=options,
+                        ignore_direction=args.ignore_direction,
+                        report_type=args.report_type,
+                    )
                     if regressions:
                         regressing_test_count += 1
                 except HunterError as err:
@@ -639,12 +653,15 @@ def script_main(conf: Config, args: List[str] = None):
                 except DataImportError as err:
                     logging.error(err.message)
                     errors += 1
-            if regressing_test_count == 0:
-                print("No regressions found!")
-            elif regressing_test_count == 1:
-                print("Regressions in 1 test found")
-            else:
-                print(f"Regressions in {regressing_test_count} tests found")
+
+            if args.report_type == ReportType.LOG:
+                if regressing_test_count == 0:
+                    print("No regressions found!")
+                elif regressing_test_count == 1:
+                    print("Regressions in 1 test found")
+                else:
+                    print(f"Regressions in {regressing_test_count} tests found")
+
             if errors > 0:
                 print("Some tests were skipped due to import / analyze errors. Consult error log.")
 
