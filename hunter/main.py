@@ -16,10 +16,16 @@ from hunter.data_selector import DataSelector
 from hunter.grafana import Annotation, Grafana, GrafanaError
 from hunter.graphite import GraphiteError
 from hunter.importer import DataImportError, Importers
+from hunter.postgres import Postgres, PostgresError
 from hunter.report import Report, ReportType
 from hunter.series import AnalysisOptions, AnalyzedSeries, compare
 from hunter.slack import NotificationError, SlackNotifier
-from hunter.test_config import GraphiteTestConfig, TestConfig, TestConfigError
+from hunter.test_config import (
+    GraphiteTestConfig,
+    PostgresTestConfig,
+    TestConfig,
+    TestConfigError,
+)
 from hunter.util import DateFormatError, interpolate, parse_datetime
 
 
@@ -33,12 +39,14 @@ class Hunter:
     __importers: Importers
     __grafana: Optional[Grafana]
     __slack: Optional[SlackNotifier]
+    __postgres: Optional[Postgres]
 
     def __init__(self, conf: Config):
         self.__conf = conf
         self.__importers = Importers(conf)
         self.__grafana = None
         self.__slack = self.__maybe_create_slack_notifier()
+        self.__postgres = None
 
     def list_tests(self, group_names: Optional[List[str]]):
         if group_names is not None:
@@ -202,6 +210,18 @@ class Hunter:
                 return
         logging.info(f"Removing {len(annotations)} annotations...")
         grafana.delete_annotations(*(a.id for a in annotations))
+
+    def __get_postgres(self) -> Postgres:
+        if self.__postgres is None:
+            self.__postgres = Postgres(self.__conf.postgres)
+        return self.__postgres
+
+    def update_postgres(self, test: PostgresTestConfig, series: AnalyzedSeries):
+        postgres = self.__get_postgres()
+        for metric_name, change_points in series.change_points.items():
+            for cp in change_points:
+                attributes = series.attributes_at(cp.index)
+                postgres.insert_change_point(test, metric_name, attributes, cp)
 
     def regressions(
         self, test: TestConfig, selector: DataSelector, options: AnalysisOptions
@@ -499,6 +519,11 @@ def script_main(conf: Config, args: List[str] = None):
         action="store_true",
     )
     analyze_parser.add_argument(
+        "--update-postgres",
+        help="Update PostgreSQL database results with change points",
+        action="store_true",
+    )
+    analyze_parser.add_argument(
         "--notify-slack",
         help="Send notification containing a summary of change points to given Slack channels",
         nargs="+",
@@ -556,6 +581,7 @@ def script_main(conf: Config, args: List[str] = None):
 
         if args.command == "analyze":
             update_grafana_flag = args.update_grafana
+            update_postgres_flag = args.update_postgres
             slack_notification_channels = args.notify_slack
             slack_cph_since = parse_datetime(args.cph_report_since)
             data_selector = data_selector_from_args(args)
@@ -572,6 +598,10 @@ def script_main(conf: Config, args: List[str] = None):
                         if not isinstance(test, GraphiteTestConfig):
                             raise GrafanaError("Not a Graphite test")
                         hunter.update_grafana_annotations(test, analyzed_series)
+                    if update_postgres_flag:
+                        if not isinstance(test, PostgresTestConfig):
+                            raise PostgresError("Not a Postgres test")
+                        hunter.update_postgres(test, analyzed_series)
                     if slack_notification_channels:
                         tests_analyzed_series[test.name] = analyzed_series
                 except DataImportError as err:
@@ -579,6 +609,10 @@ def script_main(conf: Config, args: List[str] = None):
                 except GrafanaError as err:
                     logging.error(
                         f"Failed to update grafana dashboards for {test.name}: {err.message}"
+                    )
+                except PostgresError as err:
+                    logging.error(
+                        f"Failed to update postgres database for {test.name}: {err.message}"
                     )
             if slack_notification_channels:
                 hunter.notify_slack(
