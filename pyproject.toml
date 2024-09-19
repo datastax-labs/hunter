@@ -18,6 +18,7 @@ pystache = "^0.6.0"
 tabulate = "^0.8.7"
 validators = "^0.18.2"
 slack-sdk = "^3.4.2"
+google-cloud-bigquery = "^3.25.0"
 
 
 [tool.poetry.dev-dependencies]

@@ -11,6 +11,7 @@ from slack_sdk import WebClient
 
 from hunter import config
 from hunter.attributes import get_back_links
+from hunter.bigquery import BigQuery, BigQueryError
 from hunter.config import Config, ConfigError
 from hunter.data_selector import DataSelector
 from hunter.grafana import Annotation, Grafana, GrafanaError
@@ -21,6 +22,7 @@ from hunter.report import ChangePointReport, RegressionsReport, ReportType
 from hunter.series import AnalysisOptions, AnalyzedSeries, compare
 from hunter.slack import NotificationError, SlackNotifier
 from hunter.test_config import (
+    BigQueryTestConfig,
     GraphiteTestConfig,
     PostgresTestConfig,
     TestConfig,
@@ -40,6 +42,7 @@ class Hunter:
     __grafana: Optional[Grafana]
     __slack: Optional[SlackNotifier]
     __postgres: Optional[Postgres]
+    __bigquery: Optional[BigQuery]
 
     def __init__(self, conf: Config):
         self.__conf = conf
@@ -47,6 +50,7 @@ class Hunter:
         self.__grafana = None
         self.__slack = self.__maybe_create_slack_notifier()
         self.__postgres = None
+        self.__bigquery = None
 
     def list_tests(self, group_names: Optional[List[str]]):
         if group_names is not None:
@@ -216,12 +220,24 @@ class Hunter:
             self.__postgres = Postgres(self.__conf.postgres)
         return self.__postgres
 
+    def __get_bigquery(self) -> BigQuery:
+        if self.__bigquery is None:
+            self.__bigquery = BigQuery(self.__conf.bigquery)
+        return self.__bigquery
+
     def update_postgres(self, test: PostgresTestConfig, series: AnalyzedSeries):
         postgres = self.__get_postgres()
         for metric_name, change_points in series.change_points.items():
             for cp in change_points:
                 attributes = series.attributes_at(cp.index)
                 postgres.insert_change_point(test, metric_name, attributes, cp)
+
+    def update_bigquery(self, test: BigQueryTestConfig, series: AnalyzedSeries):
+        bigquery = self.__get_bigquery()
+        for metric_name, change_points in series.change_points.items():
+            for cp in change_points:
+                attributes = series.attributes_at(cp.index)
+                bigquery.insert_change_point(test, metric_name, attributes, cp)
 
     def regressions(
         self,
@@ -497,7 +513,6 @@ def main():
     except ConfigError as err:
         logging.error(err.message)
         exit(1)
-
     script_main(conf)
 
 
@@ -531,6 +546,11 @@ def script_main(conf: Config, args: List[str] = None):
     analyze_parser.add_argument(
         "--update-postgres",
         help="Update PostgreSQL database results with change points",
+        action="store_true",
+    )
+    analyze_parser.add_argument(
+        "--update-bigquery",
+        help="Update BigQuery database results with change points",
         action="store_true",
     )
     analyze_parser.add_argument(
@@ -590,6 +610,7 @@ def script_main(conf: Config, args: List[str] = None):
         if args.command == "analyze":
             update_grafana_flag = args.update_grafana
             update_postgres_flag = args.update_postgres
+            update_bigquery_flag = args.update_bigquery
             slack_notification_channels = args.notify_slack
             slack_cph_since = parse_datetime(args.cph_report_since)
             data_selector = data_selector_from_args(args)
@@ -610,6 +631,10 @@ def script_main(conf: Config, args: List[str] = None):
                         if not isinstance(test, PostgresTestConfig):
                             raise PostgresError("Not a Postgres test")
                         hunter.update_postgres(test, analyzed_series)
+                    if update_bigquery_flag:
+                        if not isinstance(test, BigQueryTestConfig):
+                            raise BigQueryError("Not a BigQuery test")
+                        hunter.update_bigquery(test, analyzed_series)
                     if slack_notification_channels:
                         tests_analyzed_series[test.name] = analyzed_series
                 except DataImportError as err:
