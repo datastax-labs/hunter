@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from expandvars import expandvars
 from ruamel.yaml import YAML
 
+from hunter.bigquery import BigQueryConfig
 from hunter.grafana import GrafanaConfig
 from hunter.graphite import GraphiteConfig
 from hunter.postgres import PostgresConfig
@@ -22,6 +23,7 @@ class Config:
     test_groups: Dict[str, List[TestConfig]]
     slack: SlackConfig
     postgres: PostgresConfig
+    bigquery: BigQueryConfig
 
 
 @dataclass
@@ -133,6 +135,14 @@ def load_config_from(config_file: Path) -> Config:
                 database=config["postgres"]["database"],
             )
 
+        bigquery_config = None
+        if config.get("bigquery") is not None:
+            bigquery_config = BigQueryConfig(
+                project_id=config["bigquery"]["project_id"],
+                dataset=config["bigquery"]["dataset"],
+                credentials=config["bigquery"]["credentials"],
+            )
+
         templates = load_templates(config)
         tests = load_tests(config, templates)
         groups = load_test_groups(config, tests)
@@ -142,6 +152,7 @@ def load_config_from(config_file: Path) -> Config:
             grafana=grafana_config,
             slack=slack_config,
             postgres=postgres_config,
+            bigquery=bigquery_config,
             tests=tests,
             test_groups=groups,
         )
