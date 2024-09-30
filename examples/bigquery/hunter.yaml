@@ -1,0 +1,53 @@
+# External systems connectors configuration:
+bigquery:
+  project_id: ${BIGQUERY_PROJECT_ID}
+  dataset: ${BIGQUERY_DATASET}
+  credentials: ${BIGQUERY_CREDENTIALS}
+
+# Templates define common bits shared between test definitions:
+templates:
+  common:
+    type: bigquery
+    time_column: commit_ts
+    attributes: [experiment_id, config_id, commit]
+    # required for --update-bigquery to work
+    update_statement: |
+      UPDATE ${BIGQUERY_PROJECT_ID}.${BIGQUERY_DATASET}.results 
+        SET {metric}_rel_forward_change=%s, 
+            {metric}_rel_backward_change=%s, 
+            {metric}_p_value=%s
+      WHERE experiment_id = '{experiment_id}' AND config_id = {config_id}
+    metrics:
+      process_cumulative_rate_mean:
+        direction: 1
+        scale: 1
+      process_cumulative_rate_stderr:
+        direction: -1
+        scale: 1
+      process_cumulative_rate_diff:
+        direction: -1
+        scale: 1
+
+# Define your tests here:
+tests:
+  aggregate_mem:
+    inherit: [ common ] # avoids repeating metrics definitions and postgres-related config
+    query: |
+      SELECT e.commit, 
+             e.commit_ts, 
+             r.process_cumulative_rate_mean, 
+             r.process_cumulative_rate_stderr, 
+             r.process_cumulative_rate_diff, 
+             r.experiment_id, 
+             r.config_id
+      FROM ${BIGQUERY_PROJECT_ID}.${BIGQUERY_DATASET}.results r
+      INNER JOIN ${BIGQUERY_PROJECT_ID}.${BIGQUERY_DATASET}.configs c ON r.config_id = c.id
+      INNER JOIN ${BIGQUERY_PROJECT_ID}.${BIGQUERY_DATASET}.experiments e ON r.experiment_id = e.id
+      WHERE e.exclude_from_analysis = false AND
+            e.branch = 'test-branch' AND
+            e.username = 'ci' AND
+            c.store = 'test-store' AND
+            c.cache = true AND
+            c.benchmark = 'tpcds' AND
+            c.instance_type = 'test-instance'
+      ORDER BY e.commit_ts ASC;

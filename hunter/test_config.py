@@ -157,6 +157,42 @@ class PostgresTestConfig(TestConfig):
         return list(self.metrics.keys())
 
 
+@dataclass
+class BigQueryMetric:
+    name: str
+    direction: int
+    scale: float
+    column: str
+
+
+@dataclass
+class BigQueryTestConfig(TestConfig):
+    query: str
+    update_stmt: str
+    time_column: str
+    attributes: List[str]
+    metrics: Dict[str, BigQueryMetric]
+
+    def __init__(
+        self,
+        name: str,
+        query: str,
+        update_stmt: str = "",
+        time_column: str = "time",
+        metrics: List[BigQueryMetric] = None,
+        attributes: List[str] = None,
+    ):
+        self.name = name
+        self.query = query
+        self.time_column = time_column
+        self.metrics = {m.name: m for m in metrics} if metrics else {}
+        self.attributes = attributes
+        self.update_stmt = update_stmt
+
+    def fully_qualified_metric_names(self) -> List[str]:
+        return list(self.metrics.keys())
+
+
 def create_test_config(name: str, config: Dict) -> TestConfig:
     """
     Loads properties of a test from a dictionary read from hunter's config file
@@ -173,6 +209,8 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         return create_histostat_test_config(name, config)
     elif test_type == "postgres":
         return create_postgres_test_config(name, config)
+    elif test_type == "bigquery":
+        return create_bigquery_test_config(name, config)
     elif test_type == "json":
         return create_json_test_config(name, config)
     elif test_type is None:
@@ -294,6 +332,36 @@ def create_postgres_test_config(test_name: str, test_info: Dict) -> PostgresTest
             raise TestConfigError(f"Metrics of the test {test_name} must be a list or dictionary")
 
         return PostgresTestConfig(test_name, query, update_stmt, time_column, metrics, attributes)
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")
+
+
+def create_bigquery_test_config(test_name: str, test_info: Dict) -> PostgresTestConfig:
+    try:
+        time_column = test_info.get("time_column", "time")
+        attributes = test_info.get("attributes", [])
+        metrics_info = test_info.get("metrics")
+        query = test_info["query"]
+        update_stmt = test_info.get("update_statement", "")
+
+        metrics = []
+        if isinstance(metrics_info, List):
+            for name in metrics_info:
+                metrics.append(CsvMetric(name, 1, 1.0))
+        elif isinstance(metrics_info, Dict):
+            for metric_name, metric_conf in metrics_info.items():
+                metrics.append(
+                    PostgresMetric(
+                        name=metric_name,
+                        column=metric_conf.get("column", metric_name),
+                        direction=int(metric_conf.get("direction", "1")),
+                        scale=float(metric_conf.get("scale", "1")),
+                    )
+                )
+        else:
+            raise TestConfigError(f"Metrics of the test {test_name} must be a list or dictionary")
+
+        return BigQueryTestConfig(test_name, query, update_stmt, time_column, metrics, attributes)
     except KeyError as e:
         raise TestConfigError(f"Configuration key not found in test {test_name}: {e.args[0]}")
 
