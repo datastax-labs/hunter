@@ -1,4 +1,12 @@
 [[package]]
+name = "asn1crypto"
+version = "1.5.1"
+description = "Fast ASN.1 parser and serializer with definitions for private keys, public keys, certificates, CRL, OCSP, CMS, PKCS#3, PKCS#7, PKCS#8, PKCS#12, PKCS#5, X.509 and TSP"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "atomicwrites"
 version = "1.4.1"
 description = "Atomic file writes."
@@ -427,6 +435,18 @@ optional = false
 python-versions = ">=3.8"
 
 [[package]]
+name = "pg8000"
+version = "1.31.2"
+description = "PostgreSQL interface library"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+python-dateutil = ">=2.8.2"
+scramp = ">=1.4.5"
+
+[[package]]
 name = "platformdirs"
 version = "4.2.2"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
@@ -472,14 +492,6 @@ description = ""
 category = "main"
 optional = false
 python-versions = ">=3.8"
-
-[[package]]
-name = "psycopg2-binary"
-version = "2.9.9"
-description = "psycopg2 - Python-PostgreSQL Database Adapter"
-category = "main"
-optional = false
-python-versions = ">=3.7"
 
 [[package]]
 name = "py"
@@ -655,6 +667,17 @@ numpy = ">=1.18.5,<1.26.0"
 test = ["pytest", "pytest-cov", "pytest-xdist", "asv", "mpmath", "gmpy2", "threadpoolctl", "scikit-umfpack"]
 doc = ["sphinx (!=4.1.0)", "pydata-sphinx-theme (==0.9.0)", "sphinx-panels (>=0.5.2)", "matplotlib (>2)", "numpydoc", "sphinx-tabs"]
 dev = ["mypy", "typing-extensions", "pycodestyle", "flake8"]
+
+[[package]]
+name = "scramp"
+version = "1.4.5"
+description = "An implementation of the SCRAM protocol."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+asn1crypto = ">=1.5.1"
 
 [[package]]
 name = "signal-processing-algorithms"
@@ -847,9 +870,10 @@ test = ["pytest (>=6,<8.1.0 || >=8.2.0)", "pytest-checkdocs (>=2.4)", "pytest-co
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.13"
-content-hash = "5cc46e5e57ac49496685cee40d5155a9c22992832162d252db0565a363499e87"
+content-hash = "7e94266439e59f230314faf023855afc7f23d5afbcb4d5ab805b02c132f0cee1"
 
 [metadata.files]
+asn1crypto = []
 atomicwrites = []
 attrs = []
 autoflake = []
@@ -885,11 +909,11 @@ mypy-extensions = []
 numpy = []
 packaging = []
 pathspec = []
+pg8000 = []
 platformdirs = []
 pluggy = []
 proto-plus = []
 protobuf = []
-psycopg2-binary = []
 py = []
 pyasn1 = []
 pyasn1-modules = []
@@ -905,6 +929,7 @@ rsa = []
 "ruamel.yaml" = []
 "ruamel.yaml.clib" = []
 scipy = []
+scramp = []
 signal-processing-algorithms = []
 six = []
 slack-sdk = []
