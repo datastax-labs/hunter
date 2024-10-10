@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict
 
-import psycopg2
+import pg8000
 
 from hunter.analysis import ChangePoint
 from hunter.test_config import PostgresTestConfig
@@ -29,9 +29,9 @@ class Postgres:
     def __init__(self, config: PostgresConfig):
         self.__config = config
 
-    def __get_conn(self) -> psycopg2.extensions.connection:
+    def __get_conn(self) -> pg8000.dbapi.Connection:
         if self.__conn is None:
-            self.__conn = psycopg2.connect(
+            self.__conn = pg8000.dbapi.Connection(
                 host=self.__config.hostname,
                 port=self.__config.port,
                 user=self.__config.username,
@@ -43,7 +43,7 @@ class Postgres:
     def fetch_data(self, query: str):
         cursor = self.__get_conn().cursor()
         cursor.execute(query)
-        columns = [c.name for c in cursor.description]
+        columns = [c[0] for c in cursor.description]
         return (columns, cursor.fetchall())
 
     def insert_change_point(
