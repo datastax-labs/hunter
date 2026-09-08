@@ -1,0 +1,37 @@
+[
+  {
+    "timestamp": 1711929600,
+    "metrics": [{ "name": "throughput", "value": 100 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712016000,
+    "metrics": [{ "name": "throughput", "value": 101 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712102400,
+    "metrics": [{ "name": "throughput", "value": 99 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712188800,
+    "metrics": [{ "name": "throughput", "value": 100 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712275200,
+    "metrics": [{ "name": "throughput", "value": 180 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712361600,
+    "metrics": [{ "name": "throughput", "value": 185 }],
+    "attributes": { "branch": "main" }
+  },
+  {
+    "timestamp": 1712448000,
+    "metrics": [{ "name": "throughput", "value": 190 }],
+    "attributes": { "branch": "main" }
+  }
+]
