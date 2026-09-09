@@ -47,6 +47,24 @@ def assert_optional_distributions_are_absent():
         raise AssertionError(f"{distribution} was installed by the default package")
 
 
+def assert_public_api_is_installed():
+    # A wheel that drops otava/__init__.py leaves `import otava` resolving to an
+    # empty namespace package again, which no unit test can see: they run from
+    # the source tree, where the file is always present.
+    import otava
+
+    if otava.__file__ is None:
+        raise AssertionError("otava/__init__.py was not installed with the default package")
+
+    missing = [name for name in otava.__all__ if not hasattr(otava, name)]
+    if missing:
+        raise AssertionError(f"public names missing from the installed package: {missing}")
+
+    strong, _weak = otava.compute_change_points([10.0] * 20 + [30.0] * 20, window_len=10)
+    if [point.index for point in strong] != [20]:
+        raise AssertionError("compute_change_points found no change through the package root")
+
+
 def assert_cli_help_works():
     result = subprocess.run(
         [sys.executable, "-m", "otava.main", "--help"], capture_output=True, text=True
@@ -121,6 +139,7 @@ def assert_optional_operations_name_their_extras():
 
 def main():
     assert_optional_distributions_are_absent()
+    assert_public_api_is_installed()
     assert_cli_help_works()
     assert_csv_analysis_works()
     assert_optional_operations_name_their_extras()
